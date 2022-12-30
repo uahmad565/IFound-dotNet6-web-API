@@ -42,16 +42,22 @@ namespace IFoundBackend.Controllers
             return ControllerContext.MyDisplayRouteInfo(id);
         }
 
+
+
+
+
         //    formData.append("name", credentials.name);
         //formData.append("age", credentials.age);
         //formData.append("city", credentials.city);
         //formData.append("details", credentials.detail);
         //formData.append("postType", credentials.postType);
 
-        [HttpPost("/api/idk")]
-        public async Task<string> SearchFace([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
+        //LostGroup: Id= 1924
+        [HttpPost("/searchFound")]
+        public async Task<IActionResult> FindLostGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
         {
-            //conversion to base64
+            string json = System.IO.File.ReadAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json");
+            List<FaceIdentity> IdentityList = JsonConvert.DeserializeObject<List<FaceIdentity>>(json);
             string encoded = "";
             if (file.Length > 0)
             {
@@ -64,51 +70,103 @@ namespace IFoundBackend.Controllers
                 }
             }
 
-            //searching
             string subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
             MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v2/", subscriptionKey);
-            Task<HttpResponseMessage> response = mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { 1907}, encoded, 1);
+            HttpResponseMessage response = await mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { 1924 }, encoded, 1);
 
-            string apiResponse = await response.Result.Content.ReadAsStringAsync();
-            Console.WriteLine(":::::::::::::::Search Face Identity - START:::::::::::::::::::::::::::::\n");
-            if (response.Result.StatusCode == HttpStatusCode.OK)
+            string apiResponse = await response.Content.ReadAsStringAsync();
+            //Console.WriteLine(":::::::::::::::Search Face Identity - START:::::::::::::::::::::::::::::\n");
+            if (response.StatusCode == HttpStatusCode.OK)
             {
-                
-
                 SearchFaceIdentityResponse searchFaceIdentityResponse = JsonConvert.DeserializeObject<SearchFaceIdentityResponse>(apiResponse);
+
+                if (searchFaceIdentityResponse.SearchedIdentities.Count == 0)
+                {
+                    string externalId = name + age;
+                    //Enter post to Group "Found"
+                    HttpResponseMessage response2 = await mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1907 }, externalId, encoded);
+
+                    string apiResponse2 = await response2.Content.ReadAsStringAsync();
+                    if (response.StatusCode == HttpStatusCode.OK)
+                    {
+                        FaceIdentityInfo faceIdentityInfoResponse = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse2);
+
+                        IdentityList.Add(new FaceIdentity
+                        {
+                            IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
+                            Image = encoded
+
+                        });
+
+                        //Store JSON
+                        string resultJson = JsonConvert.SerializeObject(IdentityList);
+                        System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
+
+                        return Ok(faceIdentityInfoResponse);
+                    }
+                    else
+                    {
+                        return BadRequest(); //May be the image quality is bad
+                    }
+                }
+
                 foreach (var searchedIdentities in searchFaceIdentityResponse.SearchedIdentities)
                 {
                     foreach (var item in searchedIdentities.identityConfidences)
                     {
-                        FaceIdentity localIdentity = IdentityList.Find(i => i.IdentityId == item.identity.IdentityId);
-                        return localIdentity.Image;
-                        //Console.WriteLine("faceConfidence:" + item.confidence);
-                        //Console.WriteLine("faceIdentity.FaceIdentityId : {0}, faceIdentity.ExternalId : {1}, faceIdentity.CreatedDate : {2}, " +
-                        //    "faceIdentity.UpdatedDate : {3}, faceIdentity.GroupId : {4} ", item.identity.IdentityId, item.identity.ExternalId, item.identity.CreatedDate
-                        //    , item.identity.UpdatedDate, item.identity.GroupIds);
+                        if (item.confidence > 70)
+                        {
+                            FaceIdentity localIdentity = IdentityList.Find(i => i.IdentityId == item.identity.IdentityId);
+                            return Ok(localIdentity);//Local Identity Created
+                        }
+                        else
+                        {
+                            string externalId = name + age;
+                            //Enter post to Group "Found"
+                            HttpResponseMessage response2 = await mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1907 }, externalId, encoded);
+
+                            string apiResponse2 = await response2.Content.ReadAsStringAsync();
+                            if (response.StatusCode == HttpStatusCode.OK)
+                            {
+                                FaceIdentityInfo faceIdentityInfoResponse = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse2);
+
+                                IdentityList.Add(new FaceIdentity
+                                {
+                                    IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
+                                    Image = encoded
+
+                                });
+
+                                //Store JSON
+                                string resultJson = JsonConvert.SerializeObject(IdentityList);
+                                System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
+
+                                return Ok(faceIdentityInfoResponse);
+                            }
+                            else
+                            {
+                                return BadRequest(); //May be the image quality is bad
+                            }
+                        }
+
                     }
                 }
-
+                return BadRequest();
             }
             else
             {
-                string externalId = "";
-                //Enter post to Group "Lost_Side"
-                Task<HttpResponseMessage> response2 =  mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1907 }, externalId, encoded);
-                Console.WriteLine("Error message : {0}, StatusCode : {1}", response2.Result.Content, response2.Result.StatusCode);
+                return BadRequest();//Failure in Searching
             }
-
-            return encoded;
 
         }
 
+        //FoundGrouID=1907
         [HttpPost("/searchLost")]
-        public async Task<string> FindFoundGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
+        public async Task<IActionResult> FindFoundGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
         {
 
-            string json = System.IO.File.ReadAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json");
-            List<FaceIdentity> playerList = JsonConvert.DeserializeObject<List<FaceIdentity>>(json);
-            IdentityList = playerList;
+            string json = System.IO.File.ReadAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json");
+            List<FaceIdentity> IdentityList = JsonConvert.DeserializeObject<List<FaceIdentity>>(json);
             string encoded = "";
             if (file.Length > 0)
             {
@@ -130,20 +188,52 @@ namespace IFoundBackend.Controllers
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 SearchFaceIdentityResponse searchFaceIdentityResponse = JsonConvert.DeserializeObject<SearchFaceIdentityResponse>(apiResponse);
+                
+                if(searchFaceIdentityResponse.SearchedIdentities.Count==0)
+                {
+                    string externalId = name + age;
+                    //Enter post to Group "Found"
+                    HttpResponseMessage response2 = await mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1924 }, externalId, encoded);
+
+                    string apiResponse2 = await response2.Content.ReadAsStringAsync();
+                    if (response.StatusCode == HttpStatusCode.OK)
+                    {
+                        FaceIdentityInfo faceIdentityInfoResponse = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse2);
+
+                        IdentityList.Add(new FaceIdentity
+                        {
+                            IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
+                            Image = encoded
+
+                        });
+
+                        //Store JSON
+                        string resultJson = JsonConvert.SerializeObject(IdentityList);
+                        System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json", resultJson);
+
+                        return Ok(faceIdentityInfoResponse);
+                    }
+                    else
+                    {
+                        return BadRequest(); //May be the image quality is bad
+                    }
+                }
+
                 foreach (var searchedIdentities in searchFaceIdentityResponse.SearchedIdentities)
                 {
                     foreach (var item in searchedIdentities.identityConfidences)
                     {
-                        if(item.confidence>85)
+                        if(item.confidence>70)
                         {
                             FaceIdentity localIdentity = IdentityList.Find(i => i.IdentityId == item.identity.IdentityId);
-                            return localIdentity.Image;
+                            return Ok(localIdentity);//Local Identity Created
                         }
                         else
                         {
-                            string externalId = "TestDirector";
+                            string externalId = name+age;
                             //Enter post to Group "Found"
-                            HttpResponseMessage response2 = await mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1907 }, externalId, encoded);
+                            HttpResponseMessage response2 = await mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { 1924 }, externalId, encoded);
+                            
                             string apiResponse2 = await response2.Content.ReadAsStringAsync();
                             if (response.StatusCode == HttpStatusCode.OK)
                             {
@@ -158,25 +248,23 @@ namespace IFoundBackend.Controllers
 
                                 //Store JSON
                                 string resultJson=JsonConvert.SerializeObject(IdentityList);
-                                System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
+                                System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json", resultJson);
 
-                                return "Created";
+                                return Ok(faceIdentityInfoResponse);
                             }
                             else
                             {
-                                return "Couldn't Register Image";
-                                //Console.WriteLine("Error message : {0}, StatusCode : {1}", response.Content, response.StatusCode);
+                                return BadRequest(); //May be the image quality is bad
                             }
                         }
                         
                     }
                 }
-                return "asdas";
+                return BadRequest();
             }
             else
             {
-                //Failure in Searching
-                return "Searching Failed";
+                return BadRequest();//Failure in Searching
             }
         }
     }
