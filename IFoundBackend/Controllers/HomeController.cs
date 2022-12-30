@@ -56,7 +56,7 @@ namespace IFoundBackend.Controllers
         [HttpPost("/searchFound")]
         public async Task<IActionResult> FindLostGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
         {
-            string json = System.IO.File.ReadAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json");
+            string json = System.IO.File.ReadAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json");
             List<FaceIdentity> IdentityList = JsonConvert.DeserializeObject<List<FaceIdentity>>(json);
             string encoded = "";
             if (file.Length > 0)
@@ -94,15 +94,19 @@ namespace IFoundBackend.Controllers
                         IdentityList.Add(new FaceIdentity
                         {
                             IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
-                            Image = encoded
+                            Image = (FormFile)file
 
                         });
 
                         //Store JSON
                         string resultJson = JsonConvert.SerializeObject(IdentityList);
-                        System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
+                        System.IO.File.WriteAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
 
-                        return Ok(faceIdentityInfoResponse);
+                        return Ok(new
+                        {
+                            message="",
+                            faceIdentityInfoResponse= faceIdentityInfoResponse
+                        });
                     }
                     else
                     {
@@ -117,7 +121,10 @@ namespace IFoundBackend.Controllers
                         if (item.confidence > 70)
                         {
                             FaceIdentity localIdentity = IdentityList.Find(i => i.IdentityId == item.identity.IdentityId);
-                            return Ok(localIdentity);//Local Identity Created
+                            return Ok(new { 
+                                message="Found",
+                                image=localIdentity.Image
+                            });//Local Identity Created
                         }
                         else
                         {
@@ -133,15 +140,19 @@ namespace IFoundBackend.Controllers
                                 IdentityList.Add(new FaceIdentity
                                 {
                                     IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
-                                    Image = encoded
+                                    Image = (FormFile)file
 
                                 });
 
                                 //Store JSON
                                 string resultJson = JsonConvert.SerializeObject(IdentityList);
-                                System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
-
-                                return Ok(faceIdentityInfoResponse);
+                                System.IO.File.WriteAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
+                                
+                                return Ok(new
+                                {
+                                    message = "",
+                                    faceIdentityInfoResponse = faceIdentityInfoResponse
+                                });
                             }
                             else
                             {
@@ -165,7 +176,7 @@ namespace IFoundBackend.Controllers
         public async Task<IActionResult> FindFoundGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
         {
 
-            string json = System.IO.File.ReadAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json");
+            string json = System.IO.File.ReadAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json");
             List<FaceIdentity> IdentityList = JsonConvert.DeserializeObject<List<FaceIdentity>>(json);
             string encoded = "";
             if (file.Length > 0)
@@ -203,15 +214,18 @@ namespace IFoundBackend.Controllers
                         IdentityList.Add(new FaceIdentity
                         {
                             IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
-                            Image = encoded
+                            Image = (FormFile)file
 
                         });
 
                         //Store JSON
                         string resultJson = JsonConvert.SerializeObject(IdentityList);
-                        System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json", resultJson);
+                        System.IO.File.WriteAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
 
-                        return Ok(faceIdentityInfoResponse);
+                        return Ok(new { 
+                            message="",
+                            faceIdentityInfoResponse= faceIdentityInfoResponse
+                        });
                     }
                     else
                     {
@@ -226,7 +240,13 @@ namespace IFoundBackend.Controllers
                         if(item.confidence>70)
                         {
                             FaceIdentity localIdentity = IdentityList.Find(i => i.IdentityId == item.identity.IdentityId);
-                            return Ok(localIdentity);//Local Identity Created
+                            
+                            
+                            return Ok(new
+                            {
+                                message = "Found",
+                                image = localIdentity.Image
+                            });//Local Identity Created
                         }
                         else
                         {
@@ -242,15 +262,19 @@ namespace IFoundBackend.Controllers
                                 IdentityList.Add(new FaceIdentity
                                 {
                                     IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
-                                    Image = encoded
+                                    Image = (FormFile)file
 
                                 });
 
                                 //Store JSON
                                 string resultJson=JsonConvert.SerializeObject(IdentityList);
-                                System.IO.File.WriteAllText(@"C:\Users\kabirus\source\repos\IFoundBackend\IFoundBackend\localDatabase\lost.json", resultJson);
+                                System.IO.File.WriteAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
 
-                                return Ok(faceIdentityInfoResponse);
+                                return Ok(new
+                                {
+                                    message="",
+                                    faceIdentityInfoResponse= faceIdentityInfoResponse
+                                });
                             }
                             else
                             {
