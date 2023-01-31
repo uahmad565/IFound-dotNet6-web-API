@@ -22,17 +22,18 @@ namespace IFoundBackend.MxFace
             _subscripptionKey = subscripptionKey;
         }
 
-        public async Task<HttpResponseMessage> CreateFaceIdentity(List<int> groupIds, string externalId, string encoded_image)
+        public async Task<HttpResponseMessage> CreateFaceIdentity(List<int> groupIds, string encoded, string externalID, int confidenceThreshold, int qualityThreshold = 80)
         {
             using (var httpClient = new HttpClient())
             {
 
                 CreateFaceIdentityRequest request = new CreateFaceIdentityRequest
                 {
-                    ConfidenceThreshold = 0,
-                    Encoded_Image = encoded_image,
+                    ConfidenceThreshold = confidenceThreshold,
+                    Encoded_Image = encoded,
                     GroupIds = groupIds,
-                    externalId = externalId
+                    externalId = externalID,
+                    QualityThreshold=qualityThreshold
                 };
                 string jsonRequest = JsonConvert.SerializeObject(request);
                 httpClient.BaseAddress = new Uri(_apiUrl);
@@ -41,8 +42,7 @@ namespace IFoundBackend.MxFace
                 httpClient.DefaultRequestHeaders.Add("subscriptionkey", _subscripptionKey);
                 var httpContent = new StringContent(jsonRequest, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync("FaceIdentity", httpContent);
-                return response;
-                
+                return response;     
             }
         }
         public async Task GetFaceIdentityInfoByFaceIdentity(int faceIdentityId)
@@ -243,7 +243,7 @@ namespace IFoundBackend.MxFace
                 Console.WriteLine(":::::::::::::::Update Group By Face Identity Id - END:::::::::::::::::::::::::::::\n");
             }
         }
-        public async Task<HttpResponseMessage> SearchFaceIdentityInGroup(List<int> groupId, string encoded,int limit)
+        public async Task<HttpResponseMessage> SearchFaceIdentityInGroup(List<int> groupId, string encoded,int limit,int qualityThreshold=80)
         {
             using (var httpClient = new HttpClient())
             {
@@ -251,7 +251,8 @@ namespace IFoundBackend.MxFace
                 {
                     GroupIds = groupId,
                     Encoded_Image = encoded,
-                    Limit = limit
+                    Limit = limit,
+                    QualityThreshold=qualityThreshold
                 };
                 string jsonRequest = JsonConvert.SerializeObject(request);
                 httpClient.BaseAddress = new Uri(_apiUrl);
