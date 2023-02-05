@@ -25,7 +25,6 @@ namespace IFoundBackend.SqlModels
         public virtual DbSet<TargetPerson> TargetPeople { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<UserRole> UserRoles { get; set; }
-        public virtual DbSet<X> Xes { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -264,14 +263,7 @@ namespace IFoundBackend.SqlModels
                     .HasConstraintName("FK__UserRoles__userI__2E1BDC42");
             });
 
-            modelBuilder.Entity<X>(entity =>
-            {
-                entity.HasNoKey();
 
-                entity.ToTable("x");
-
-                entity.Property(e => e.Y).HasColumnName("y");
-            });
 
             OnModelCreatingPartial(modelBuilder);
         }
