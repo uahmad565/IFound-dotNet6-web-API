@@ -9,7 +9,6 @@ using IFoundBackend.Model.Enums;
 using IFoundBackend.Model.Posts;
 using IFoundBackend.Model.Targets;
 using IFoundBackend.MxFace;
-using IFoundBackend.MxFace.Utilities;
 using IFoundBackend.SqlModels;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
@@ -45,7 +44,7 @@ namespace IFoundBackend.Controllers
     {
         public readonly int _lostGroupId = 1924;
         public readonly int _foundGroup = 1907;
-        public readonly int _confidenceThresh= 70;
+        public readonly int _confidenceThresh = 100;
 
         private MXFaceIdentityAPI _mxFaceIdentityAPI;
         private readonly ILogger<HomeController> _logger;
@@ -128,7 +127,7 @@ namespace IFoundBackend.Controllers
                     try
                     {
                         var x = new PostPersonManager();
-                        int postID = await x.createPost(dbContext,data);
+                        int postID = await x.createPost(dbContext, data);
 
                         HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _lostGroupId }, encoded, postID.ToString(), _confidenceThresh);
 
@@ -165,17 +164,22 @@ namespace IFoundBackend.Controllers
             }
         }
 
-        //, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType
-        //Search: LostGroup: Id= 1924
-        //Register: FoundGroup: Id=1907
+        
         [HttpGet("getCurrentLostPosts")]
-        public  IActionResult getCurrentLostPosts()
+        public IActionResult GetCurrentLostPosts()
         {
-            var postManager=new PostPersonManager();
-            List<PostDto> list=postManager.GetCurrentLostPersonPosts();
+            var postManager = new PostPersonManager();
+            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.LOST);
             return Ok(list);
         }
 
+        [HttpGet("getCurrentFoundPosts")]
+        public IActionResult GetCurrentFoundPosts()
+        {
+            var postManager = new PostPersonManager();
+            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.FOUND);
+            return Ok(list);
+        }
 
 
         //, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType
@@ -191,9 +195,9 @@ namespace IFoundBackend.Controllers
                 byte[] imgdata = memoryStream.ToArray();
                 encoded = Convert.ToBase64String(imgdata);
             }
-            int limit=3;
+            int limit = 3;
             //---
-            
+
             HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { _foundGroup }, encoded, limit);
             Task<string> apiResponseTask = response.Content.ReadAsStringAsync();
 
@@ -211,8 +215,8 @@ namespace IFoundBackend.Controllers
                 }
                 var x = new PostPersonManager();
                 var keys = searchPosts.Keys.ToArray();
-                
-                List<PostDto> MatchedPosts=x.getPosts(keys);
+
+                List<PostDto> MatchedPosts = x.getPosts(keys);
                 return Ok(MatchedPosts);
             }
             else
@@ -277,9 +281,9 @@ namespace IFoundBackend.Controllers
         //    }
         //    return BadRequest();
         //}
-  
+
     }
-    
+
 }
 
 //Helping Functions

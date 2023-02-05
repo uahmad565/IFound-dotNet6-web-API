@@ -15,7 +15,8 @@ namespace IFoundBackend.Areas.Posts
 {
     public class PostPersonManager
     {
-        public PostPersonManager() { 
+        public PostPersonManager()
+        {
         }
         public List<PostDto> getPosts(string[] ids)
         {
@@ -33,38 +34,37 @@ namespace IFoundBackend.Areas.Posts
                                 where request.PostId == id
                                 select request).FirstOrDefault();
 
-                    PostDto postDto=ConvertToDTOs.toDto(Data);
+                    PostDto postDto = ConvertToDTOs.toDto(Data);
                     result.Add(postDto);
                 }
             }
             return result;
         }
 
-        public List<PostDto> GetCurrentLostPersonPosts()
+        public List<PostDto> GetCurrentPersonPosts(TargetType targetType)
         {
-            using (var context=new IFoundContext())
+            using (var context = new IFoundContext())
             {
-                var mxFaceIdentities=(from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                var mxFaceIdentities = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
                                                           .Include(c => c.Post.Person)
-                                                          .Include(d => d.Post.Status) select x).ToList();
+                                                          .Include(d => d.Post.Status)
+                                        where x.Post.Person.TargetId == (int)(targetType)
+                                        select x).ToList();
+
                 List<PostDto> lostPosts = new List<PostDto>();
                 foreach (var item in mxFaceIdentities)
                 {
-                    PostDto result=ConvertToDTOs.toDto(item);
-                    bool isLost=result.TargetPersonDto.TargetId == (int)TargetType.LOST;
-                    if (result!=null && isLost)
-                    {
-                        lostPosts.Add(result);
-                    }
+                    PostDto result = ConvertToDTOs.toDto(item);
+                    lostPosts.Add(result);
                 }
                 return lostPosts;
             }
         }
 
-       
-        public async Task<int> createPost(IFoundContext dbContext,PersonForm data)
+
+        public async Task<int> createPost(IFoundContext dbContext, PersonForm data)
         {
-           
+
             var postPerson = new PostPerson();
             var image = new SqlModels.Image();
 
@@ -83,8 +83,8 @@ namespace IFoundBackend.Areas.Posts
             targetPerson.Location = data.Location;
             targetPerson.TargetId = (int)data.TargetType;
             postPerson.Person = targetPerson;
-            byte[] imageData=await imageTask;
-            if(imageData!=null)
+            byte[] imageData = await imageTask;
+            if (imageData != null)
             {
                 image.Pic = imageData;
             }
@@ -95,7 +95,7 @@ namespace IFoundBackend.Areas.Posts
             dbContext.PostPeople.Add(postPerson);
             dbContext.SaveChanges();
             return postPerson.PostPersonId;
-         
+
         }
 
         public void createFoundPost()
