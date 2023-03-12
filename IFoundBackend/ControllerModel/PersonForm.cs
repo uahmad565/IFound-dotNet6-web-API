@@ -13,14 +13,27 @@ namespace IFoundBackend.ControllerModel
         public IFormFile Image { get; set; }
 
         public string Base64Image { get; set; }
+        
+        [Required]
+        [MinLength(20)]
         public string Description { get; set; }
+        [Required]
+        [MinLength(20)]
         public string Location { get; set; }
-        public int Age { get; set; }
-        public int UserId { get; set; }
-        public GenderType Gender { get; set; }
-        public RelationType Relation { get; set; }
+
+        [Range(3, 100)]
+        [Required]
+        public int? Age { get; set; }
+        [Required]
+        public int? UserId { get; set; }
+        [Required]
+        public GenderType? Gender { get; set; }
+        [Required]
+        public RelationType? Relation { get; set; }
+        [Required]
+        [MinLength(5)]
         public string Name { get; set; }
-        public TargetType TargetType{ get; set; }
+        public TargetType? TargetType{ get; set; }
         public PostStatus PostStatus { get; set; } = PostStatus.Unresolved;
 
         public string convertToBase64(IFormFile file)

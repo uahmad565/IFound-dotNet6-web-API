@@ -9,6 +9,7 @@ namespace MXFaceAPIOneToNCall.Model.FaceIndentity
         public List<int> GroupIds { get; set; }
         public string Encoded_Image { get; set; }
         public int Limit { get; set; }
+        public bool ReturnConfidence { get; set; }   
         /// <summary>
         /// Optional integer value between 21 and 100. If this parameter added in request then uploaded faces
         /// quality will be compared from request qualityThreshold value, otherwise quality check as per defined

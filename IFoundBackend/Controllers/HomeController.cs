@@ -42,8 +42,8 @@ namespace IFoundBackend.Controllers
     [ApiController]
     public class HomeController : ControllerBase
     {
-        public readonly int _lostGroupId = 1924;
-        public readonly int _foundGroup = 1907;
+        public readonly int _lostGroupId = 22;
+        public readonly int _foundGroup = 23;
         public readonly int _confidenceThresh = 100;
 
         private MXFaceIdentityAPI _mxFaceIdentityAPI;
@@ -53,11 +53,11 @@ namespace IFoundBackend.Controllers
             _logger = logger;
 
             string _subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
-            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v2/", _subscriptionKey);
+            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v3/", _subscriptionKey);
             _mxFaceIdentityAPI = mxFaceIdentityAPI;
         }
 
-
+    
         [HttpPost("createFoundPersonForm")]
         //public async Task<IActionResult> createLostPersonIdentity([Bind("Image,Description ,Location, Age, UserId, Gender, Relation, Name, targetType")] LostPersonForm data)
         public async Task<IActionResult> createFoundPersonIdentity([FromForm] PersonForm data)
@@ -75,7 +75,7 @@ namespace IFoundBackend.Controllers
                         var x = new PostPersonManager();
                         int postID = await x.createPost(dbContext, data);
 
-                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _foundGroup }, encoded, postID.ToString(), _confidenceThresh);
+                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _foundGroup }, encoded, postID.ToString(), true);
 
                         string apiResponse = await response.Content.ReadAsStringAsync();
 
@@ -129,7 +129,7 @@ namespace IFoundBackend.Controllers
                         var x = new PostPersonManager();
                         int postID = await x.createPost(dbContext, data);
 
-                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _lostGroupId }, encoded, postID.ToString(), _confidenceThresh);
+                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _lostGroupId }, encoded, postID.ToString(), true);
 
                         string apiResponse = await response.Content.ReadAsStringAsync();
 
@@ -164,15 +164,6 @@ namespace IFoundBackend.Controllers
             }
         }
 
-        
-        [HttpGet("getCurrentLostPosts")]
-        public IActionResult GetCurrentLostPosts()
-        {
-            var postManager = new PostPersonManager();
-            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.LOST);
-            return Ok(list);
-        }
-
         [HttpGet("getCurrentFoundPosts")]
         public IActionResult GetCurrentFoundPosts()
         {
@@ -181,43 +172,51 @@ namespace IFoundBackend.Controllers
             return Ok(list);
         }
 
-
-        //, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType
-        //Search: LostGroup: Id= 1924
-        //Register: FoundGroup: Id=1907
-        [HttpGet("searchLostPerson")]
-        public async Task<IActionResult> searchLostPerson([FromForm] IFormFile data)
+        [HttpGet("getCurrentLostPosts")]
+        public IActionResult GetCurrentLostPosts()
         {
-            string encoded = "";
-            using (var memoryStream = new MemoryStream())
-            {
-                await data.CopyToAsync(memoryStream);
-                byte[] imgdata = memoryStream.ToArray();
-                encoded = Convert.ToBase64String(imgdata);
-            }
-            int limit = 3;
-            //---
+            var postManager = new PostPersonManager();
+            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.LOST);
+            return Ok(list);
+        }
 
-            HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { _foundGroup }, encoded, limit);
+        [HttpGet("activeCases")]
+        public IActionResult GetUserActiveCases(TargetType targetType,int id)
+        {
+            var postManager = new PostPersonManager();
+            List<PostDto> list = postManager.GetUserActiveCases(targetType, id);
+            return Ok(list);
+        }
+
+        
+        [HttpPost("searchLostPerson")]
+        //public async Task<IActionResult> SearchLostPerson([FromForm] IFormFile data)
+        public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromForm] TargetType targetType)
+        {
+           
+            int findGroupID = 0;
+            if(targetType== TargetType.FOUND)
+                findGroupID = _lostGroupId;
+            else if(targetType== TargetType.LOST)
+                findGroupID = _foundGroup;
+
+            int limit = 2;
+            bool returnConfidence = true;
+            HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { findGroupID }, encoded, limit, returnConfidence);
             Task<string> apiResponseTask = response.Content.ReadAsStringAsync();
 
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 string apiResponse = await apiResponseTask;
                 SearchFaceIdentityResponse searchFaceIdentityResponse = JsonConvert.DeserializeObject<SearchFaceIdentityResponse>(apiResponse);
-                var searchPosts = new Dictionary<string, double>();
+                List<SearchedPostDto> searchedPostDtos= new List<SearchedPostDto>();
                 foreach (var lookUpIdentity in searchFaceIdentityResponse.SearchedIdentities)
                 {
-                    lookUpIdentity.identityConfidences.ForEach(identityConfidence =>
-                    {
-                        searchPosts.Add(identityConfidence.identity.ExternalId, identityConfidence.confidence);
-                    });
+                    var x = new PostPersonManager();
+                    searchedPostDtos.AddRange(x.GetSearchedPosts(lookUpIdentity.identityConfidences));
                 }
-                var x = new PostPersonManager();
-                var keys = searchPosts.Keys.ToArray();
-
-                List<PostDto> MatchedPosts = x.getPosts(keys);
-                return Ok(MatchedPosts);
+                
+                return Ok(searchedPostDtos);
             }
             else
             {
@@ -226,67 +225,9 @@ namespace IFoundBackend.Controllers
 
         }
 
-        //Search: FoundGroup: Id=1907
-        //Register: LostGroup: Id= 1924
-        //[HttpPost]
-        //public async Task<IActionResult> FindFoundGroup([FromForm] IFormFile file, [FromForm] string name, [FromForm] int age, [FromForm] string city, [FromForm] string details, [FromForm] string postType)
-        //{
 
-        //    List<FaceIdentity> allIdentities = getLocalIdentities(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json");
 
-        //    string encoded = convertToBase64(file);
-
-        //    string subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
-        //    MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v2/", subscriptionKey);
-
-        //    HttpResponseMessage response = await mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { 1907 }, encoded, 1);
-
-        //    string apiResponse = await response.Content.ReadAsStringAsync();
-
-        //    if (response.StatusCode == HttpStatusCode.OK)
-        //    {
-        //        SearchFaceIdentityResponse searchFaceIdentityResponse = JsonConvert.DeserializeObject<SearchFaceIdentityResponse>(apiResponse);
-        //        FaceIdentity result = searchFace(allIdentities, searchFaceIdentityResponse);
-        //        if (result == null) //Search Failed
-        //        {
-        //            FaceIdentityInfo faceIdentityInfoResponse = await createIdentity(name + age, encoded, mxFaceIdentityAPI, new List<int> { 1924 });
-        //            allIdentities.Add(new FaceIdentity
-        //            {
-        //                IdentityId = Convert.ToInt32(faceIdentityInfoResponse.FaceIdentityId),
-        //                Image = encoded
-
-        //            });
-
-        //            //Store JSON
-        //            string resultJson = JsonConvert.SerializeObject(allIdentities);
-        //            System.IO.File.WriteAllText(@"C:\Users\munee\Desktop\FYP\IFound\backend2\IFoundBackend\IFoundBackend\localDatabase\data.json", resultJson);
-        //            return Ok(new
-        //            {
-        //                message = "",
-        //                FaceIdentityInfo = faceIdentityInfoResponse
-        //            });
-        //        }
-        //        else
-        //        {
-        //            return Ok(new
-        //            {
-        //                message = "Found",
-        //                image = result.Image
-        //            });
-        //        }
-        //    }
-        //    else
-        //    {
-        //        return BadRequest();//Failure in Searching
-        //    }
-        //    return BadRequest();
-        //}
 
     }
 
 }
-
-//Helping Functions
-
-//byte[] imgdata = SqlAccess.GetPhoto("C:\\Users\\kabirus\\Desktop\\UsmanUni\\UsmanFaceIdentity\\usman2.jpg");
-//string encoded = Convert.ToBase64String(imgdata);

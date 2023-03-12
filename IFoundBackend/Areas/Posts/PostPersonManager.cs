@@ -6,6 +6,7 @@ using IFoundBackend.SqlModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using MXFaceAPIOneToNCall.Model.FaceIndentity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -61,6 +62,49 @@ namespace IFoundBackend.Areas.Posts
             }
         }
 
+        public List<PostDto> GetUserActiveCases(TargetType targetType, int userID)
+        {
+            using (var context = new IFoundContext())
+            {
+                var mxFaceIdentities = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                          .Include(c => c.Post.Person)
+                                                          .Include(mxFaceIdentity => mxFaceIdentity.Post.Person.Target)
+                .Include(d => d.Post.Status)
+                                        where (x.Post.UserId == userID && x.Post.Person.TargetId == (int)targetType)
+                                        select x).ToList();
+
+                List<PostDto> lostPosts = new List<PostDto>();
+                foreach (var item in mxFaceIdentities)
+                {
+                    PostDto result = ConvertToDTOs.toDto(item);
+                    lostPosts.Add(result);
+                }
+                return lostPosts;
+            }
+
+        }
+        public List<SearchedPostDto> GetSearchedPosts(List<IdentityConfidences> identityConfidences)
+        {
+            List<SearchedPostDto> result=new List<SearchedPostDto>(identityConfidences.Count);
+            using (var context = new IFoundContext())
+            {
+                
+                foreach (var identityConfidence in identityConfidences)
+                {
+                    int id = Convert.ToInt32(identityConfidence.identity.ExternalId);
+                    
+                    var Data = (from request in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                          .Include(c => c.Post.Person)
+                                                          .Include(d => d.Post.Status)
+                                where request.PostId == id
+                                select request).FirstOrDefault();
+
+                    result.Add(ConvertToDTOs.ToSearchedPostDto(identityConfidence, Data));
+                }
+                
+            }
+            return result;
+        }
 
         public async Task<int> createPost(IFoundContext dbContext, PersonForm data)
         {
@@ -72,7 +116,7 @@ namespace IFoundBackend.Areas.Posts
 
             postPerson.StatusId = (int)data.PostStatus;
             postPerson.PostDate = DateTime.Now;
-            postPerson.UserId = data.UserId;
+            postPerson.UserId = (int)data.UserId;
 
             var targetPerson = new TargetPerson();
             targetPerson.Name = data.Name;
