@@ -6,6 +6,7 @@ namespace MXFaceAPIOneToNCall.Model.FaceIndentity
 {
     public class CreateFaceIdentityRequest
     {
+        public bool ForceAdd { get; set; }
         public List<int> GroupIds { get; set; }
         public string Encoded_Image { get; set; }
         public string externalId { get; set; }

@@ -46,4 +46,16 @@ namespace IFoundBackend.Areas.ToDTOs
         public int UserID { get; set; }
         public TargetPersonDto TargetPersonDto { get; set; }
     }
+
+    public class SearchedPostDto
+    {
+        public int MxIdentityFaceID { get; set; }
+        public double Confidence { get; set; }
+        public int PostPersonId { get; set; }
+        public int StatusId { get; set; }
+        public DateTime? PostDate { get; set; }
+        public ImageDto ImageDto { get; set; }
+        public int UserID { get; set; }
+        public TargetPersonDto TargetPersonDto { get; set; }
+    }
 }

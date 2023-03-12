@@ -25,7 +25,7 @@ namespace IFoundBackend.Areas.MxFaceManager
         public FaceIdentityManager()
         {
             string _subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
-            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v2/", _subscriptionKey);
+            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v3/", _subscriptionKey);
             _mxFaceIdentityAPI= mxFaceIdentityAPI;
         }
  

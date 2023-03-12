@@ -22,14 +22,14 @@ namespace IFoundBackend.MxFace
             _subscripptionKey = subscripptionKey;
         }
 
-        public async Task<HttpResponseMessage> CreateFaceIdentity(List<int> groupIds, string encoded, string externalID, int confidenceThreshold, int qualityThreshold = 80)
+        public async Task<HttpResponseMessage> CreateFaceIdentity(List<int> groupIds, string encoded, string externalID, bool forceAdd, int qualityThreshold = 80)
         {
             using (var httpClient = new HttpClient())
             {
 
                 CreateFaceIdentityRequest request = new CreateFaceIdentityRequest
                 {
-                    ConfidenceThreshold = confidenceThreshold,
+                    ForceAdd = forceAdd,
                     Encoded_Image = encoded,
                     GroupIds = groupIds,
                     externalId = externalID,
@@ -243,7 +243,7 @@ namespace IFoundBackend.MxFace
                 Console.WriteLine(":::::::::::::::Update Group By Face Identity Id - END:::::::::::::::::::::::::::::\n");
             }
         }
-        public async Task<HttpResponseMessage> SearchFaceIdentityInGroup(List<int> groupId, string encoded,int limit,int qualityThreshold=80)
+        public async Task<HttpResponseMessage> SearchFaceIdentityInGroup(List<int> groupId, string encoded,int limit, bool returnConfidence, int qualityThreshold=80)
         {
             using (var httpClient = new HttpClient())
             {
@@ -252,7 +252,8 @@ namespace IFoundBackend.MxFace
                     GroupIds = groupId,
                     Encoded_Image = encoded,
                     Limit = limit,
-                    QualityThreshold=qualityThreshold
+                    QualityThreshold=qualityThreshold,
+                    ReturnConfidence= returnConfidence
                 };
                 string jsonRequest = JsonConvert.SerializeObject(request);
                 httpClient.BaseAddress = new Uri(_apiUrl);
