@@ -24,7 +24,7 @@ namespace IFoundBackend.Areas.Posts
             var result = new List<PostDto>();
 
             //Querying with LINQ to Entities 
-            using (var context = new IFoundContext())
+            using (var context = new IfoundContext())
             {
                 foreach (var idInString in ids)
                 {
@@ -44,12 +44,12 @@ namespace IFoundBackend.Areas.Posts
 
         public List<PostDto> GetCurrentPersonPosts(TargetType targetType)
         {
-            using (var context = new IFoundContext())
+            using (var context = new IfoundContext())
             {
                 var mxFaceIdentities = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
                                                           .Include(c => c.Post.Person)
                                                           .Include(d => d.Post.Status)
-                                        where x.Post.Person.TargetId == (int)(targetType)
+                                        where x.Post.Person.TargetId == (int)(targetType) && x.Post.StatusId==(int)Model.Enums.PostStatus.Unresolved 
                                         select x).ToList();
 
                 List<PostDto> lostPosts = new List<PostDto>();
@@ -62,15 +62,65 @@ namespace IFoundBackend.Areas.Posts
             }
         }
 
-        public List<PostDto> GetUserActiveCases(TargetType targetType, int userID)
+        #region Statistics
+        public int GetUserActiveCasesCount(TargetType targetType, int userID)
         {
-            using (var context = new IFoundContext())
+            using (var context = new IfoundContext())
+            {
+                return (from x in context.MxFaceIdentities.Include(c => c.Post.Person)
+                                        where (x.Post.UserId == userID && x.Post.Person.TargetId == (int)targetType)
+                                        select x).Count();
+            }
+
+        }
+        public int GetUserUnresolvedCasesCount(int userID)
+        {
+            using (var context = new IfoundContext())
+            {
+                return (from x in context.MxFaceIdentities.Include(c => c.Post.Person)
+                        where (x.Post.UserId == userID && (x.Post.Person.TargetId == (int)TargetType.LOST || x.Post.Person.TargetId == (int)TargetType.FOUND))
+                        select x).Count();
+            }
+
+        }
+        public int GetUserResolvedCasesCount(int userID)
+        {
+            return 0;
+
+        }
+
+        public int GetAllResolvedCasesCount()
+        {
+            return 0;
+
+        }
+
+        public int GetAllUnResolvedCasesCount()
+        {
+            return 0;
+
+        }
+
+        public int GetActivePostCount(TargetType targetType)
+        {
+            using (var context = new IfoundContext())
+            {
+                return (from x in context.MxFaceIdentities.Include(c => c.Post.Person)
+                        where ( x.Post.Person.TargetId == (int)targetType)
+                        select x).Count();
+            }
+        }
+        #endregion
+
+        public List<PostDto> GetUserActiveCases(Model.Enums.PostStatus postStatus,TargetType targetType, int userID)
+        {
+            using (var context = new IfoundContext())
             {
                 var mxFaceIdentities = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
                                                           .Include(c => c.Post.Person)
                                                           .Include(mxFaceIdentity => mxFaceIdentity.Post.Person.Target)
-                .Include(d => d.Post.Status)
-                                        where (x.Post.UserId == userID && x.Post.Person.TargetId == (int)targetType)
+                                            .Include(d => d.Post.Status)
+                                        where (x.Post.UserId == userID && x.Post.Status.StatusId == (int)postStatus && x.Post.Person.TargetId == (int)targetType)
                                         select x).ToList();
 
                 List<PostDto> lostPosts = new List<PostDto>();
@@ -83,16 +133,24 @@ namespace IFoundBackend.Areas.Posts
             }
 
         }
+
+        public void UpdatePostStatus(int postId, Model.Enums.PostStatus postStatus)
+        {
+            using (var context=new IfoundContext())
+            {
+                context.PostPeople.Where(x => x.PostPersonId == postId).ExecuteUpdate(x =>x.SetProperty(y=>y.StatusId, (int)postStatus));
+            }
+        }
         public List<SearchedPostDto> GetSearchedPosts(List<IdentityConfidences> identityConfidences)
         {
-            List<SearchedPostDto> result=new List<SearchedPostDto>(identityConfidences.Count);
-            using (var context = new IFoundContext())
+            List<SearchedPostDto> result = new List<SearchedPostDto>(identityConfidences.Count);
+            using (var context = new IfoundContext())
             {
-                
+
                 foreach (var identityConfidence in identityConfidences)
                 {
                     int id = Convert.ToInt32(identityConfidence.identity.ExternalId);
-                    
+
                     var Data = (from request in context.MxFaceIdentities.Include(a => a.Post.Image)
                                                           .Include(c => c.Post.Person)
                                                           .Include(d => d.Post.Status)
@@ -101,12 +159,28 @@ namespace IFoundBackend.Areas.Posts
 
                     result.Add(ConvertToDTOs.ToSearchedPostDto(identityConfidence, Data));
                 }
-                
+
             }
             return result;
         }
 
-        public async Task<int> createPost(IFoundContext dbContext, PersonForm data)
+        public int DeletePost(IfoundContext context,int postId)
+        {
+            var mxFaceIdentity = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                           .Include(c => c.Post.Person)
+                                  where x.PostId == postId
+                                  select x).FirstOrDefault();
+            if (mxFaceIdentity == null)
+                return -1;
+
+            context.PostPeople.Remove(mxFaceIdentity.Post);
+            context.TargetPeople.Remove(mxFaceIdentity.Post.Person);
+            context.Images.Remove(mxFaceIdentity.Post.Image);
+            context.SaveChanges();
+            return mxFaceIdentity.FaceIdentityId;
+        }
+
+        public async Task<int> createPost(IfoundContext dbContext, PersonForm data)
         {
 
             var postPerson = new PostPerson();
@@ -134,7 +208,7 @@ namespace IFoundBackend.Areas.Posts
             }
             //image.Pic = System.Convert.FromBase64String(data.Base64Image);
             postPerson.Image = image;
-
+            postPerson.Phone= data.Phone;
 
             dbContext.PostPeople.Add(postPerson);
             dbContext.SaveChanges();
@@ -142,26 +216,38 @@ namespace IFoundBackend.Areas.Posts
 
         }
 
-        public void createFoundPost()
+        public PostDto GetCurrentPostById(int id,TargetType targetType)
         {
+            using (var context = new IfoundContext())
+            {
+                var mxFaceIdentity = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                          .Include(c => c.Post.Person)
+                                                          .Include(d => d.Post.Status)
+                                      where x.PostId == id && x.Post.Person.TargetId== (int)targetType
+                                      select x).FirstOrDefault();
+                if (mxFaceIdentity == null)
+                    return null;
 
+                PostDto postDto = ConvertToDTOs.toDto(mxFaceIdentity);
+                return postDto;
+            }
         }
-        public void updatePost(int id)
+
+        public PostDto GetPostById(int id)
         {
+            using (var context = new IfoundContext())
+            {
+                var mxFaceIdentity = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                          .Include(c => c.Post.Person)
+                                                          .Include(d => d.Post.Status)
+                                      where x.PostId == id
+                                      select x).FirstOrDefault();
+                if (mxFaceIdentity == null)
+                    return null;
 
-        }
-        public void deletePostById(int id)
-        {
-
-        }
-        public void getPostById(int id)
-        {
-
-        }
-
-        public void getAllLostPosts(int limit)
-        {
-
+                PostDto postDto = ConvertToDTOs.toDto(mxFaceIdentity);
+                return postDto;
+            }
         }
 
     }

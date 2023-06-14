@@ -15,15 +15,18 @@ namespace IFoundBackend.ControllerModel
         public string Base64Image { get; set; }
         
         [Required]
-        [MinLength(20)]
+        [MinLength(5)]
         public string Description { get; set; }
         [Required]
-        [MinLength(20)]
+        [MinLength(5)]
         public string Location { get; set; }
-
-        [Range(3, 100)]
+        [Required]
+        [MinLength(10),MaxLength(15)]
+        public string Phone { get; set; }
+        [Range(1, 150)]
         [Required]
         public int? Age { get; set; }
+        
         [Required]
         public int? UserId { get; set; }
         [Required]
@@ -31,7 +34,7 @@ namespace IFoundBackend.ControllerModel
         [Required]
         public RelationType? Relation { get; set; }
         [Required]
-        [MinLength(5)]
+        [MinLength(3)]
         public string Name { get; set; }
         public TargetType? TargetType{ get; set; }
         public PostStatus PostStatus { get; set; } = PostStatus.Unresolved;

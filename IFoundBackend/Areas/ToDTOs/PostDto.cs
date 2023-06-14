@@ -40,6 +40,7 @@ namespace IFoundBackend.Areas.ToDTOs
     {
         public int MxIdentityFaceID { get; set; }
         public int PostPersonId { get; set; }
+        public string Phone { get; set; }
         public int StatusId { get; set; }
         public DateTime? PostDate { get; set; }
         public ImageDto ImageDto { get; set; }
@@ -52,6 +53,7 @@ namespace IFoundBackend.Areas.ToDTOs
         public int MxIdentityFaceID { get; set; }
         public double Confidence { get; set; }
         public int PostPersonId { get; set; }
+        public string Phone { get; set; }
         public int StatusId { get; set; }
         public DateTime? PostDate { get; set; }
         public ImageDto ImageDto { get; set; }

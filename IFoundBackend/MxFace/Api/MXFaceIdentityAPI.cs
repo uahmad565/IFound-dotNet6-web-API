@@ -291,7 +291,7 @@ namespace IFoundBackend.MxFace
             }
         }
 
-        public async Task DeleteFaceIdentity(int faceIdentityId)
+        public async Task<HttpResponseMessage> DeleteFaceIdentity(int faceIdentityId)
         {
             using (var httpClient = new HttpClient())
             {
@@ -300,27 +300,7 @@ namespace IFoundBackend.MxFace
                 httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 httpClient.DefaultRequestHeaders.Add("subscriptionkey", _subscripptionKey);
                 HttpResponseMessage response = await httpClient.DeleteAsync("FaceIdentity/" + faceIdentityId);
-                string apiResponse = await response.Content.ReadAsStringAsync();
-
-                Console.WriteLine(":::::::::::::::Delete Face Identity - START:::::::::::::::::::::::::::::\n");
-                if (response.StatusCode == HttpStatusCode.OK)
-                {
-                    FaceIdentityInfo deleteFaceIdentityInfo = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse);
-                    if (string.IsNullOrEmpty(deleteFaceIdentityInfo.ErrorMessage))
-                    {
-                        Console.WriteLine("face.Identity : {0} deleted successfully.", faceIdentityId);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Error message : {0}", deleteFaceIdentityInfo.ErrorMessage);
-                    }
-
-                }
-                else
-                {
-                    Console.WriteLine("Error message : {0}, StatusCode : {1}", response.Content, response.StatusCode);
-                }
-                Console.WriteLine(":::::::::::::::Delete Face By Face Identity ID - END:::::::::::::::::::::::::::::\n");
+                return response;
             }
         }
     }

@@ -31,7 +31,7 @@ namespace IFoundBackend
         {
             services.AddControllers().AddNewtonsoftJson();
             //services.AddSingleton<IConfiguration>(Configuration);
-            services.AddDbContext<IFoundContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IFoundDB")));
+            services.AddDbContext<IfoundContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IFoundDB")));
 
 
 
