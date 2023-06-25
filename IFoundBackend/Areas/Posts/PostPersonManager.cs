@@ -1,6 +1,5 @@
 ﻿using IFoundBackend.Areas.ToDTOs;
-using IFoundBackend.ControllerModel;
-using IFoundBackend.Data;
+using IFoundBackend.DTOs;
 using IFoundBackend.Model.Enums;
 using IFoundBackend.MxFace;
 using IFoundBackend.SqlModels;
@@ -53,7 +52,7 @@ namespace IFoundBackend.Areas.Posts
             }
         }
 
-        public async Task<HttpResponseMessage> CreatePost(PersonForm data, int groupID)
+        public async Task<HttpResponseMessage> CreatePost(PersonForm data, int groupID, string tokenUserId)
         {
             string encoded = data.convertToBase64(data.Image);
             //string encoded = data.Base64Image;
@@ -63,7 +62,7 @@ namespace IFoundBackend.Areas.Posts
                 {
                     try
                     {
-                        int postID = await CreatePost(dbContext, data);
+                        int postID = await CreatePost(dbContext, data,tokenUserId);
 
                         HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { groupID }, encoded, postID.ToString(), true);
 
@@ -193,27 +192,27 @@ namespace IFoundBackend.Areas.Posts
         }
 
         #region Statistics
-        public int GetUserActiveCasesCount(TargetType targetType, int userID)
+        public int GetUserActiveCasesCount(TargetType targetType, string tokenUserId)
         {
             using (var context = new IfoundContext())
             {
                 return (from x in context.MxFaceIdentities.Include(c => c.Post.Person)
-                        where (x.Post.UserId == userID && x.Post.Person.TargetId == (int)targetType)
+                        where (x.Post.UserId.Equals(tokenUserId) && x.Post.Person.TargetId == (int)targetType)
                         select x).Count();
             }
 
         }
-        public int GetUserUnresolvedCasesCount(int userID)
+        public int GetUserUnresolvedCasesCount(string userID)
         {
             using (var context = new IfoundContext())
             {
                 return (from x in context.MxFaceIdentities.Include(c => c.Post.Person)
-                        where (x.Post.UserId == userID && (x.Post.Person.TargetId == (int)TargetType.LOST || x.Post.Person.TargetId == (int)TargetType.FOUND))
+                        where (x.Post.UserId.Equals(userID) && (x.Post.Person.TargetId == (int)TargetType.LOST || x.Post.Person.TargetId == (int)TargetType.FOUND))
                         select x).Count();
             }
 
         }
-        public int GetUserResolvedCasesCount(int userID)
+        public int GetUserResolvedCasesCount(string userID)
         {
             return 0;
 
@@ -242,7 +241,7 @@ namespace IFoundBackend.Areas.Posts
         }
         #endregion
 
-        public List<PostDto> GetUserActiveCases(Model.Enums.PostStatus postStatus, TargetType targetType, int userID)
+        public List<PostDto> GetUserActiveCases(Model.Enums.PostStatus postStatus, TargetType targetType, string tokenUserID)
         {
             using (var context = new IfoundContext())
             {
@@ -250,7 +249,7 @@ namespace IFoundBackend.Areas.Posts
                                                           .Include(c => c.Post.Person)
                                                           .Include(mxFaceIdentity => mxFaceIdentity.Post.Person.Target)
                                             .Include(d => d.Post.Status)
-                                        where (x.Post.UserId == userID && x.Post.Status.StatusId == (int)postStatus && x.Post.Person.TargetId == (int)targetType)
+                                        where (x.Post.UserId.Equals(tokenUserID) && x.Post.Status.StatusId == (int)postStatus && x.Post.Person.TargetId == (int)targetType)
                                         select x).ToList();
 
                 List<PostDto> lostPosts = new List<PostDto>();
@@ -289,7 +288,7 @@ namespace IFoundBackend.Areas.Posts
             return mxFaceIdentity.FaceIdentityId;
         }
 
-        private async Task<int> CreatePost(IfoundContext dbContext, PersonForm data)
+        private async Task<int> CreatePost(IfoundContext dbContext, PersonForm data, string tokenUserId)
         {
 
             var postPerson = new PostPerson();
@@ -299,7 +298,7 @@ namespace IFoundBackend.Areas.Posts
 
             postPerson.StatusId = (int)data.PostStatus;
             postPerson.PostDate = DateTime.Now;
-            postPerson.UserId = (int)data.UserId;
+            postPerson.UserId = tokenUserId;
 
             var targetPerson = new TargetPerson();
             targetPerson.Name = data.Name;

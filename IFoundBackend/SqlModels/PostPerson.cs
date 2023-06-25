@@ -13,7 +13,7 @@ public partial class PostPerson
 
     public DateTime? PostDate { get; set; }
 
-    public int UserId { get; set; }
+    public string UserId { get; set; }
 
     public int PersonId { get; set; }
 

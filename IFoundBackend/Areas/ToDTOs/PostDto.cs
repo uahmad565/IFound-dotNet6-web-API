@@ -44,7 +44,7 @@ namespace IFoundBackend.Areas.ToDTOs
         public int StatusId { get; set; }
         public DateTime? PostDate { get; set; }
         public ImageDto ImageDto { get; set; }
-        public int UserID { get; set; }
+        public string UserID { get; set; }
         public TargetPersonDto TargetPersonDto { get; set; }
     }
 
@@ -57,7 +57,7 @@ namespace IFoundBackend.Areas.ToDTOs
         public int StatusId { get; set; }
         public DateTime? PostDate { get; set; }
         public ImageDto ImageDto { get; set; }
-        public int UserID { get; set; }
+        public string UserID { get; set; }
         public TargetPersonDto TargetPersonDto { get; set; }
     }
 }

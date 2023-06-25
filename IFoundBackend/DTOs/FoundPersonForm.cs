@@ -4,7 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System;
 
-namespace IFoundBackend.ControllerModel
+namespace IFoundBackend.DTOs
 {
     public class FoundPersonForm
     {

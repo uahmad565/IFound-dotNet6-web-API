@@ -1,6 +1,6 @@
 ﻿using IFoundBackend.Areas.Posts;
 using IFoundBackend.Areas.ToDTOs;
-using IFoundBackend.ControllerModel;
+using IFoundBackend.DTOs;
 using IFoundBackend.Model.Enums;
 using IFoundBackend.MxFace;
 using IFoundBackend.SqlModels;
@@ -12,10 +12,19 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Serialization;
 using Microsoft.Extensions.Configuration;
+using System.Net;
+using Microsoft.AspNetCore.Authorization;
+using IFoundBackend.Auth;
+using NuGet.Common;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using IFoundBackend.Areas.Help;
 
 
 //Scaffolding Command
 //Scaffold-DbContext "Data Source=LHE-LT-UKABIR;Initial Catalog=IFound;Integrated Security=True;Encrypt=False" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
+//Scaffold-DbContext "Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
+//Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin"
 namespace IFoundBackend.Controllers
 {
     [Route("api/[controller]")]
@@ -49,14 +58,16 @@ namespace IFoundBackend.Controllers
         //    _mxFaceIdentityAPI = mxFaceIdentityAPI;
         //}
 
-
+        [Authorize(Roles = UserRoles.User)]
         [HttpPost("createFoundPersonForm")]
         public async Task<IActionResult> CreateFoundPersonIdentity([FromForm] PersonForm data)
         {
             try
             {
-                var response = await _postManager.CreatePost(data, _foundGroup);
-                if(response.IsSuccessStatusCode) { 
+                string tokenUserId = this.GetTokenUserId();
+                var response = await _postManager.CreatePost(data, _foundGroup, tokenUserId);
+                if (response.IsSuccessStatusCode)
+                {
                     return Ok(response);
                 }
                 return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
@@ -67,29 +78,45 @@ namespace IFoundBackend.Controllers
             }
         }
 
-
+        [Authorize(Roles = UserRoles.User)]
         [HttpPost("createLostPersonForm")]
         public async Task<IActionResult> CreateLostPersonIdentity([FromForm] PersonForm data)
         {
             try
             {
-                var response = await _postManager.CreatePost(data, _lostGroupId);
-                return Ok(response);
+                string tokenUserId = this.GetTokenUserId();
+                var response = await _postManager.CreatePost(data, _lostGroupId, tokenUserId);
+                if (response.IsSuccessStatusCode)
+                {
+                    return Ok(response);
+                }
+                return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
             }
             catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return StatusCode(500, "An error occurred: " + ex.Message);
             }
         }
 
+        [Authorize]
         [HttpGet("getCurrentFoundPosts")]
         public IActionResult GetCurrentFoundPosts()
         {
             List<PostDto> list = _postManager.GetCurrentPersonPosts(TargetType.FOUND);
-            return Ok(list);
+
+            // Configure the JSON serializer to use UTC format for DateTime properties
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc
+            };
+
+            return new JsonResult(list, settings);
         }
 
 
+        [Authorize]
         [HttpGet("getCurrentLostPosts")]
         public IActionResult GetCurrentLostPosts()
         {
@@ -103,19 +130,19 @@ namespace IFoundBackend.Controllers
                 DateTimeZoneHandling = DateTimeZoneHandling.Utc
             };
 
-            //var json = JsonConvert.SerializeObject(list, settings);
-
             return new JsonResult(list, settings);
-
         }
 
+        [Authorize(Roles = UserRoles.User)]
         [HttpGet("activeCases/{postStatus}")]
-        public IActionResult GetUserActiveCases([FromRoute] Model.Enums.PostStatus postStatus, [FromQuery] TargetType targetType, [FromQuery] int id)
+        public IActionResult GetUserActiveCases([FromRoute] Model.Enums.PostStatus postStatus, [FromQuery] TargetType targetType)
         {
-            List<PostDto> list = _postManager.GetUserActiveCases(postStatus, targetType, id);
+            string tokenUserId = this.GetTokenUserId();
+            List<PostDto> list = _postManager.GetUserActiveCases(postStatus, targetType, tokenUserId);
             return Ok(list);
         }
 
+        [Authorize(Roles = UserRoles.User)]
         [HttpPost("searchLostPerson")]
         public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromForm] TargetType targetType)
         {
@@ -128,12 +155,13 @@ namespace IFoundBackend.Controllers
 
             int limit = 2;
             bool returnConfidence = true;
-            var result=await _postManager.SearchPosts(findGroupID,encoded,limit, returnConfidence);
+            var result = await _postManager.SearchPosts(findGroupID, encoded, limit, returnConfidence);
             if (result != null)
                 return Ok(result);
             return BadRequest("Error In Searching Make sure to send clear Image");
         }
 
+        [Authorize(Roles = UserRoles.User)]
         [HttpPut("UpdatePostStatus/{postId}")]
         public ActionResult UpdatePostStatus(int postId, [FromBody] Model.Enums.PostStatus postStatus)
         {
@@ -148,16 +176,16 @@ namespace IFoundBackend.Controllers
             }
 
         }
-
+        [Authorize]
         [HttpDelete("DeleteCurrentPost")]
         public async Task<ActionResult> DeletePost(int postId)
         {
             try
             {
-               var response=await _postManager.DeletePost(postId);
+                var response = await _postManager.DeletePost(postId);
                 if (response.IsSuccessStatusCode)
                     return Ok(response);
-                return StatusCode(((int)response.StatusCode),response.ReasonPhrase);
+                return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
             }
             catch (Exception ex)
             {
@@ -165,7 +193,7 @@ namespace IFoundBackend.Controllers
             }
         }
 
-
+        [Authorize(Roles = UserRoles.User)]
         // GET: api/PostPersons/5
         [HttpGet("GetCurrentPostPerson")]
         public ActionResult<PostPerson> GetCurrentPostPerson(int postId, TargetType postType)
@@ -195,7 +223,7 @@ namespace IFoundBackend.Controllers
 
         }
 
-        // GET: api/PostPersons/5
+        [Authorize(Roles = UserRoles.User)]
         [HttpGet("GetPostPerson")]
         public ActionResult<PostPerson> GetPostPerson(int id)
         {
@@ -223,20 +251,21 @@ namespace IFoundBackend.Controllers
             }
 
         }
-
         #region Statistics Apis
 
-        [HttpGet("DashboardStats/{userId}")]
-        public IActionResult GetDashboardStats(int userId)
+        [Authorize]
+        [HttpGet("DashboardStats")]
+        public IActionResult GetDashboardStats()
         {
             try
             {
+                string tokenUserId = GetTokenUserId();
                 StatDto dto = new()
                 {
-                    UserActiveLostCasesCount = _postManager.GetUserActiveCasesCount(TargetType.LOST, userId),
-                    UserActiveFoundCasesCount = _postManager.GetUserActiveCasesCount(TargetType.FOUND, userId),
-                    UserUnresolvedCasesCount = _postManager.GetUserUnresolvedCasesCount(userId),
-                    UserResolvedCasesCount = _postManager.GetUserResolvedCasesCount(userId),
+                    UserActiveLostCasesCount = _postManager.GetUserActiveCasesCount(TargetType.LOST, tokenUserId),
+                    UserActiveFoundCasesCount = _postManager.GetUserActiveCasesCount(TargetType.FOUND, tokenUserId),
+                    UserUnresolvedCasesCount = _postManager.GetUserUnresolvedCasesCount(tokenUserId),
+                    UserResolvedCasesCount = _postManager.GetUserResolvedCasesCount(tokenUserId),
                     AllActiveLostPostCount = _postManager.GetActivePostCount(TargetType.LOST),
                     AllActiveFoundPostCount = _postManager.GetActivePostCount(TargetType.FOUND),
                     AllResolvedPostCount = _postManager.GetAllResolvedCasesCount(),
@@ -249,6 +278,14 @@ namespace IFoundBackend.Controllers
             {
                 return StatusCode(500, "An error occurred: " + ex.Message);
             }
+        }
+        #endregion
+
+        #region Private Methods
+        private string GetTokenUserId()
+        {
+            string token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            return JWTHandler.GetUserID(token);
         }
         #endregion
     }

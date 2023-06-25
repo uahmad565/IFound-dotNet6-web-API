@@ -5,7 +5,7 @@ using IFoundBackend.Model.Enums;
 using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 
-namespace IFoundBackend.ControllerModel
+namespace IFoundBackend.DTOs
 {
 
     public class PersonForm
@@ -26,9 +26,6 @@ namespace IFoundBackend.ControllerModel
         [Range(1, 150)]
         [Required]
         public int? Age { get; set; }
-        
-        [Required]
-        public int? UserId { get; set; }
         [Required]
         public GenderType? Gender { get; set; }
         [Required]
