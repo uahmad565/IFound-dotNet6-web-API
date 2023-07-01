@@ -19,12 +19,9 @@ using NuGet.Common;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using IFoundBackend.Areas.Help;
+using IFoundBackend.Model;
+using Microsoft.AspNetCore.Identity;
 
-
-//Scaffolding Command
-//Scaffold-DbContext "Data Source=LHE-LT-UKABIR;Initial Catalog=IFound;Integrated Security=True;Encrypt=False" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
-//Scaffold-DbContext "Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
-//Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin"
 namespace IFoundBackend.Controllers
 {
     [Route("api/[controller]")]
@@ -34,21 +31,22 @@ namespace IFoundBackend.Controllers
         public readonly int _lostGroupId = 22;
         public readonly int _foundGroup = 23;
         public readonly int _confidenceThresh = 100;
-
+        private readonly UserManager<ApplicationUser> _userManager;
 
         private IPostManager _postManager { get; }
 
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(ILogger<HomeController> logger, IConfiguration configuration)
+        public HomeController(ILogger<HomeController> logger, IConfiguration configuration, UserManager<ApplicationUser> userManager)
         {
             _logger = logger;
             _lostGroupId = int.Parse(configuration["MXFaceConfiguration:lostGroupId"]);
             _foundGroup = int.Parse(configuration["MXFaceConfiguration:foundGroupId"]);
             _confidenceThresh = int.Parse(configuration["MXFaceConfiguration:confidenceThresh"]);
+            _userManager = userManager;
             string _subscriptionKey = configuration["MXFaceConfiguration:subscriptionKey"];
             MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI(configuration["MXFaceConfiguration:URL"], _subscriptionKey);
-            _postManager = new PostPersonManager(mxFaceIdentityAPI);
+            _postManager = new PostPersonManager(mxFaceIdentityAPI,_userManager);
         }
 
         //public HomeController()
@@ -134,8 +132,8 @@ namespace IFoundBackend.Controllers
         }
 
         [Authorize(Roles = UserRoles.User)]
-        [HttpGet("activeCases/{postStatus}")]
-        public IActionResult GetUserActiveCases([FromRoute] Model.Enums.PostStatus postStatus, [FromQuery] TargetType targetType)
+        [HttpGet("activeCases/{postStatus}/{targetType}")]
+        public IActionResult GetUserActiveCases([FromRoute] Model.Enums.PostStatus postStatus, [FromRoute] TargetType targetType)
         {
             string tokenUserId = this.GetTokenUserId();
             List<PostDto> list = _postManager.GetUserActiveCases(postStatus, targetType, tokenUserId);
@@ -143,8 +141,8 @@ namespace IFoundBackend.Controllers
         }
 
         [Authorize(Roles = UserRoles.User)]
-        [HttpPost("searchLostPerson")]
-        public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromForm] TargetType targetType)
+        [HttpPost("searchPerson/{targetType}")]
+        public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromRoute] TargetType targetType)
         {
 
             int findGroupID = 0;
@@ -177,8 +175,8 @@ namespace IFoundBackend.Controllers
 
         }
         [Authorize]
-        [HttpDelete("DeleteCurrentPost")]
-        public async Task<ActionResult> DeletePost(int postId)
+        [HttpDelete("DeleteCurrentPost/{postId}")]
+        public async Task<ActionResult> DeletePost([FromRoute]int postId)
         {
             try
             {
@@ -195,17 +193,15 @@ namespace IFoundBackend.Controllers
 
         [Authorize(Roles = UserRoles.User)]
         // GET: api/PostPersons/5
-        [HttpGet("GetCurrentPostPerson")]
-        public ActionResult<PostPerson> GetCurrentPostPerson(int postId, TargetType postType)
+        [HttpGet("GetCurrentPostPerson/{postId}/{postType}")]
+        public async Task<ActionResult<PostPerson>> GetCurrentPostPerson(int postId, TargetType postType)
         {
             try
             {
-                var result = _postManager.GetCurrentPostById(postId, postType);
+                var result = await _postManager.GetCurrentPostById(postId, postType);
 
                 if (result == null)
-                {
                     return NotFound();
-                }
 
                 var settings = new JsonSerializerSettings
                 {
@@ -225,16 +221,13 @@ namespace IFoundBackend.Controllers
 
         [Authorize(Roles = UserRoles.User)]
         [HttpGet("GetPostPerson")]
-        public ActionResult<PostPerson> GetPostPerson(int id)
+        public async Task<ActionResult<PostPerson>> GetPostPerson(int id)
         {
             try
             {
-                var result = _postManager.GetPostById(id);
-
+                var result = await _postManager.GetPostById(id);
                 if (result == null)
-                {
                     return NotFound();
-                }
 
                 var settings = new JsonSerializerSettings
                 {

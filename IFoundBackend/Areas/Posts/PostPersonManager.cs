@@ -17,19 +17,23 @@ using System.Threading.Tasks;
 using ConvertToDTOs = IFoundBackend.Areas.ToDTOs.ConvertToDTOs;
 using IFoundBackend.Model.Abstracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
+using IFoundBackend.Model;
+using System.Drawing.Text;
 
 namespace IFoundBackend.Areas.Posts
 {
     public class PostPersonManager : IPostManager
     {
         private static MXFaceIdentityAPI _mxFaceIdentityAPI = null;
-
-        public PostPersonManager(MXFaceIdentityAPI mxFaceIdentityAPI)
+        private static UserManager<ApplicationUser> _userManager = null;
+        public PostPersonManager(MXFaceIdentityAPI mxFaceIdentityAPI, UserManager<ApplicationUser> userManager)
         {
             _mxFaceIdentityAPI = mxFaceIdentityAPI;
+            _userManager = userManager;
         }
 
-        public async Task<List<SearchedPostDto>> SearchPosts(int groupID,string encoded,int limit,bool returnConfidence)
+        public async Task<List<SearchedPostDto>> SearchPosts(int groupID, string encoded, int limit, bool returnConfidence)
         {
             HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { groupID }, encoded, limit, returnConfidence);
             Task<string> apiResponseTask = response.Content.ReadAsStringAsync();
@@ -41,14 +45,14 @@ namespace IFoundBackend.Areas.Posts
                 List<SearchedPostDto> searchedPostDtos = new List<SearchedPostDto>();
                 foreach (var lookUpIdentity in searchFaceIdentityResponse.SearchedIdentities)
                 {
-                    searchedPostDtos.AddRange(GetSearchedPosts(lookUpIdentity.identityConfidences));
+                    searchedPostDtos.AddRange(await GetSearchedPosts(lookUpIdentity.identityConfidences));
                 }
 
                 return searchedPostDtos;
             }
             else
             {
-                return  null;
+                return null;
             }
         }
 
@@ -62,7 +66,7 @@ namespace IFoundBackend.Areas.Posts
                 {
                     try
                     {
-                        int postID = await CreatePost(dbContext, data,tokenUserId);
+                        int postID = await CreatePost(dbContext, data, tokenUserId);
 
                         HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { groupID }, encoded, postID.ToString(), true);
 
@@ -124,20 +128,20 @@ namespace IFoundBackend.Areas.Posts
                             {
                                 //Console.WriteLine("face.Identity : {0} deleted successfully.", faceIdentityId);
                                 transaction.Commit();
-                                return new HttpResponseMessage { StatusCode = HttpStatusCode.NoContent};
+                                return new HttpResponseMessage { StatusCode = HttpStatusCode.NoContent };
                             }
                             else
                             {
                                 //logging("Error message : {0}", deleteFaceIdentityInfo.ErrorMessage);
                                 transaction.Rollback();
-                                return new HttpResponseMessage { StatusCode=HttpStatusCode.NotFound,ReasonPhrase= deleteFaceIdentityInfo.ErrorMessage };
+                                return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound, ReasonPhrase = deleteFaceIdentityInfo.ErrorMessage };
                             }
 
                         }
                         else
                         {
                             //logging("Error message : {0}, StatusCode : {1}", response.Content, response.StatusCode);
-                            return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound};
+                            return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound };
                         }
                     }
                     catch (Exception)
@@ -325,8 +329,9 @@ namespace IFoundBackend.Areas.Posts
         }
         #endregion
 
-        private List<SearchedPostDto> GetSearchedPosts(List<IdentityConfidences> identityConfidences)
+        private async Task<List<SearchedPostDto>> GetSearchedPosts(List<IdentityConfidences> identityConfidences)
         {
+
             List<SearchedPostDto> result = new List<SearchedPostDto>(identityConfidences.Count);
             using (var context = new IfoundContext())
             {
@@ -340,15 +345,24 @@ namespace IFoundBackend.Areas.Posts
                                                           .Include(d => d.Post.Status)
                                 where request.PostId == id
                                 select request).FirstOrDefault();
+                    var searchPostDto = ConvertToDTOs.ToSearchedPostDto(identityConfidence, Data);
 
-                    result.Add(ConvertToDTOs.ToSearchedPostDto(identityConfidence, Data));
+                    var user = await _userManager.FindByIdAsync(searchPostDto.UserID);
+                    if (user != null)
+                    {
+                        searchPostDto.OwnerEmail = user.Email;
+                        searchPostDto.OwnerPost=user.Name;
+                    }
+
+                    result.Add(searchPostDto);
                 }
 
             }
             return result;
         }
 
-        public PostDto GetCurrentPostById(int id, TargetType targetType)
+
+        public async Task<PostDto> GetCurrentPostById(int id, TargetType targetType)
         {
             using (var context = new IfoundContext())
             {
@@ -361,11 +375,15 @@ namespace IFoundBackend.Areas.Posts
                     return null;
 
                 PostDto postDto = ConvertToDTOs.toDto(mxFaceIdentity);
+                var user = await _userManager.FindByIdAsync(postDto.UserID);
+
+                if (user != null)
+                    postDto.OwnerPost = user.Name;
                 return postDto;
             }
         }
 
-        public PostDto GetPostById(int id)
+        public async Task<PostDto> GetPostById(int id)
         {
             using (var context = new IfoundContext())
             {
@@ -378,6 +396,11 @@ namespace IFoundBackend.Areas.Posts
                     return null;
 
                 PostDto postDto = ConvertToDTOs.toDto(mxFaceIdentity);
+
+                var user = await _userManager.FindByIdAsync(postDto.UserID);
+
+                if (user != null)
+                    postDto.OwnerPost = user.Name;
                 return postDto;
             }
         }

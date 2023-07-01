@@ -4,8 +4,8 @@ namespace IFoundBackend.Auth
 {
     public class RegisterModel
     {
-        [Required(ErrorMessage = "User Name is required")]
-        public string? Username { get; set; }
+        [Required(ErrorMessage = "Name is required")]
+        public string? Name { get; set; }
 
         [EmailAddress]
         [Required(ErrorMessage = "Email is required")]

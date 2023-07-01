@@ -25,8 +25,8 @@ namespace IFoundBackend.Areas.Posts
         public Task<List<SearchedPostDto>> SearchPosts(int groupID, string encoded, int limit, bool returnConfidence);
 
         public Task<HttpResponseMessage> DeletePost(int postId);
-        public PostDto GetCurrentPostById(int id, TargetType targetType);
-        public PostDto GetPostById(int id);
+        public Task<PostDto> GetCurrentPostById(int id, TargetType targetType);
+        public Task<PostDto> GetPostById(int id);
 
     }
 }

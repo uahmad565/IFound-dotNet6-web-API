@@ -99,3 +99,9 @@ namespace IFoundBackend
         }
     }
 }
+
+
+//Scaffolding Command
+//Scaffold-DbContext "Data Source=LHE-LT-UKABIR;Initial Catalog=IFound;Integrated Security=True;Encrypt=False" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
+//Scaffold-DbContext "Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
+//Data Source=sql-server-algo.database.windows.net;Initial Catalog=IFound;User ID=usman-admin"
