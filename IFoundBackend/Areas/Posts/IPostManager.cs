@@ -3,6 +3,7 @@ using IFoundBackend.DTOs;
 using IFoundBackend.Model.Enums;
 using IFoundBackend.SqlModels;
 using MXFaceAPIOneToNCall.Model.FaceIndentity;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -14,6 +15,7 @@ namespace IFoundBackend.Areas.Posts
         public Task<HttpResponseMessage> CreatePost(PersonForm data, int groupID, string tokenUserId);
         public List<PostDto> getPosts(string[] ids);
         public List<PostDto> GetCurrentPersonPosts(TargetType targetType);
+        public List<PostDto> GetCurrentPersonPostsFilters(TargetType targetType, string City, string Name, int MinAge, int MaxAge, GenderType Gender, DateTime FromDate, DateTime ToDate, int PageNo, int PageSize = 10);
         public int GetUserActiveCasesCount(TargetType targetType, string tokenUserId);
         public int GetUserUnresolvedCasesCount(string userID);
         public int GetUserResolvedCasesCount(string userID);

@@ -21,6 +21,7 @@ using System.Linq;
 using IFoundBackend.Areas.Help;
 using IFoundBackend.Model;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 namespace IFoundBackend.Controllers
 {
@@ -46,7 +47,7 @@ namespace IFoundBackend.Controllers
             _userManager = userManager;
             string _subscriptionKey = configuration["MXFaceConfiguration:subscriptionKey"];
             MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI(configuration["MXFaceConfiguration:URL"], _subscriptionKey);
-            _postManager = new PostPersonManager(mxFaceIdentityAPI,_userManager);
+            _postManager = new PostPersonManager(mxFaceIdentityAPI, _userManager);
         }
 
         //public HomeController()
@@ -55,6 +56,13 @@ namespace IFoundBackend.Controllers
         //    MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v3/", _subscriptionKey);
         //    _mxFaceIdentityAPI = mxFaceIdentityAPI;
         //}
+
+        [AllowAnonymous]
+        [HttpGet]
+        public string Index()
+        {
+            return "<h1>Server is running </h1>";
+        }
 
         [Authorize(Roles = UserRoles.User)]
         [HttpPost("createFoundPersonForm")]
@@ -101,6 +109,23 @@ namespace IFoundBackend.Controllers
         public IActionResult GetCurrentFoundPosts()
         {
             List<PostDto> list = _postManager.GetCurrentPersonPosts(TargetType.FOUND);
+
+            // Configure the JSON serializer to use UTC format for DateTime properties
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc
+            };
+
+            return new JsonResult(list, settings);
+        }
+
+        [HttpGet("filterPosts")]
+        public IActionResult ApplyFilterPosts(string City, string Name, int MinAge, int MaxAge, GenderType Gender, DateTime FromDate, DateTime ToDate, int PageNo, int PageSize = 10)
+        {
+
+            List<PostDto> list = _postManager.GetCurrentPersonPostsFilters(TargetType.LOST, City, Name, MinAge, MaxAge, Gender, FromDate, ToDate, PageNo, PageSize);
 
             // Configure the JSON serializer to use UTC format for DateTime properties
             var settings = new JsonSerializerSettings
@@ -176,7 +201,7 @@ namespace IFoundBackend.Controllers
         }
         [Authorize]
         [HttpDelete("DeleteCurrentPost/{postId}")]
-        public async Task<ActionResult> DeletePost([FromRoute]int postId)
+        public async Task<ActionResult> DeletePost([FromRoute] int postId)
         {
             try
             {

@@ -1,9 +1,10 @@
-﻿using NuGet.Common;
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System;
-using Microsoft.AspNetCore.Http;
 using System.Linq;
 using System.Security.Claims;
+
+using IFoundBackend.Model;
+using System.Collections.Generic;
 
 namespace IFoundBackend.Areas.Help
 {
@@ -26,6 +27,23 @@ namespace IFoundBackend.Areas.Help
                 return claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value; 
             }
             return null;
+        }
+
+        internal static List<Claim> PrepareClaims(ApplicationUser user,IList<string> userRoles)
+        {
+            var claims = new List<Claim>
+                    {
+                        new Claim(ClaimTypes.Name, user.UserName),
+                        new Claim(ClaimTypes.NameIdentifier,user.Id),
+                        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                        new Claim(ClaimTypes.DateOfBirth, DateTime.UtcNow.ToString()),
+            };
+
+            foreach (var userRole in userRoles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, userRole));
+            }
+            return claims;
         }
     }
 }

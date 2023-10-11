@@ -33,6 +33,8 @@ namespace IFoundBackend.Areas.Posts
             _userManager = userManager;
         }
 
+        public PostPersonManager() { }
+
         public async Task<List<SearchedPostDto>> SearchPosts(int groupID, string encoded, int limit, bool returnConfidence)
         {
             HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { groupID }, encoded, limit, returnConfidence);
@@ -175,6 +177,30 @@ namespace IFoundBackend.Areas.Posts
             return result;
         }
 
+        public List<PostDto> GetCurrentPersonPostsFilters(TargetType targetType, string City, string Name, int MinAge, int MaxAge, GenderType Gender, DateTime FromDate, DateTime ToDate, int PageNo, int PageSize = 10)
+        {
+            using (var context = new IfoundContext())
+            {
+                var mxFaceIdentities = (from x in context.MxFaceIdentities.Include(a => a.Post.Image)
+                                                          .Include(c => c.Post.Person)
+                                                          .Include(d => d.Post.Status)
+                                        where x.Post.Person.TargetId == (int)(targetType) && x.Post.StatusId == (int)Model.Enums.PostStatus.Unresolved
+                                        && x.Post.Person.Location.ToLower() == City.ToLower()
+                                        && x.Post.Person.Name.ToLower() == Name.ToLower()
+                                        && x.Post.Person.Age >= MinAge && x.Post.Person.Age <= MaxAge
+                                        && x.Post.Person.Gender.ToLower() == Gender.ToString().ToLower()
+                                        && x.Post.PostDate >= FromDate && x.Post.PostDate <= ToDate
+                                        select x).Take(new Range(PageSize * PageNo, PageSize * PageNo + PageSize)).ToList();
+
+                List<PostDto> lostPosts = new List<PostDto>();
+                foreach (var item in mxFaceIdentities)
+                {
+                    PostDto result = ConvertToDTOs.toDto(item);
+                    lostPosts.Add(result);
+                }
+                return lostPosts;
+            }
+        }
         public List<PostDto> GetCurrentPersonPosts(TargetType targetType)
         {
             using (var context = new IfoundContext())
@@ -351,7 +377,7 @@ namespace IFoundBackend.Areas.Posts
                     if (user != null)
                     {
                         searchPostDto.OwnerEmail = user.Email;
-                        searchPostDto.OwnerPost=user.Name;
+                        searchPostDto.OwnerPost = user.Name;
                     }
 
                     result.Add(searchPostDto);

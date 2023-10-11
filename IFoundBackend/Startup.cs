@@ -56,6 +56,20 @@ namespace IFoundBackend
                     ValidIssuer = Configuration["JWT:ValidIssuer"],
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["JWT:Secret"]))
                 };
+            })
+
+            .AddGoogle(options =>
+            {
+                options.ClientId = Configuration["GoogleAuth2:ClientID"];
+                options.ClientSecret = Configuration["GoogleAuth2:ClientSecret"];
+                //options.Scope.Add("profile");
+                //options.SignInScheme = Microsoft.AspNetCore.Identity.IdentityConstants.ExternalScheme;
+
+            }).
+            AddFacebook(options =>
+            {
+                options.AppId = "264181206224166";
+                options.AppSecret = "b96ccbe82d3415f5da740d9fe58be4e3";
             });
 
         }

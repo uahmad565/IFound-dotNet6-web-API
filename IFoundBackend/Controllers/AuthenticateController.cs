@@ -17,6 +17,13 @@ using IFoundBackend.Areas.Help;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
 using System.IO;
+using Newtonsoft.Json.Serialization;
+using Newtonsoft.Json;
+using NuGet.Configuration;
+using Microsoft.Net.Http.Headers;
+using System.Collections.Specialized;
+using System.Net.Http;
+using Microsoft.Extensions.Options;
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace IFoundBackend.Controllers
@@ -27,16 +34,129 @@ namespace IFoundBackend.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
+
         private readonly IConfiguration _configuration;
 
         public AuthenticateController(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
+            SignInManager<ApplicationUser> signInManager,
             IConfiguration configuration)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
+            _signInManager = signInManager;
+        }
+
+
+        [HttpGet]
+        [AllowAnonymous]
+        [Route("account/external-login")]
+        public IActionResult ExternalLogin(string provider = "Google", string returnUrl = "")
+        {
+            var redirectUrl = $"https://localhost:44364/api/Authenticate/account/external-auth-callback?returnUrl={returnUrl}";
+            var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+            properties.AllowRefresh = true;
+            var result = Challenge(properties, provider);
+            return result;
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        [Route("account/external-auth-callback")]
+        public async Task<IActionResult> ExternalLoginCallback(string returnUrl = "")
+        {
+            ExternalLoginInfo info = await _signInManager.GetExternalLoginInfoAsync();
+            var result = await ExternalLogin(info);
+
+            if (result == null)
+            {
+                return StatusCode(500, "An error occurred: External Login Failed");
+            }
+
+            Response.Cookies.Append("IFound_Token",
+            JsonConvert.SerializeObject(result, new JsonSerializerSettings
+            {
+                ContractResolver = new DefaultContractResolver
+                {
+                    NamingStrategy = new CamelCaseNamingStrategy()
+                },
+                Formatting = Formatting.Indented
+            }));
+
+            return Redirect(returnUrl);
+        }
+
+        public async Task<IActionResult> ExternalLogin(ExternalLoginInfo info)
+        {
+            var signinResult = await _signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
+            var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+            var user = await _userManager.FindByEmailAsync(email);
+
+            if (signinResult.Succeeded)
+            {
+                var userRoles = await _userManager.GetRolesAsync(user);
+
+                var claims = JWTHandler.PrepareClaims(user, userRoles);
+
+                var token = GetToken(claims);
+                await _userManager.SetAuthenticationTokenAsync(
+                    user,
+                    TokenOptions.DefaultProvider,
+                    "IFound_Token",
+                    new JwtSecurityTokenHandler().WriteToken(token));
+
+                return Ok(new
+                {
+                    x_auth_token = new JwtSecurityTokenHandler().WriteToken(token),
+                    expiration = token.ValidTo.ToLocalTime().ToString("f"),
+                    email = user.Email,
+                    name = user.Name,
+                });
+            }
+
+            if (!email.IsNullOrEmpty())
+            {
+                if (user == null)
+                {
+                    user = new ApplicationUser()
+                    {
+                        UserName = info.Principal.FindFirstValue(ClaimTypes.Email),
+                        Email = info.Principal.FindFirstValue(ClaimTypes.Email),
+                        Name = info.Principal.FindFirstValue(ClaimTypes.Name)
+                    };
+                    await _userManager.CreateAsync(user);
+
+                    if (await _roleManager.RoleExistsAsync(UserRoles.User))
+                    {
+                        await _userManager.AddToRoleAsync(user, UserRoles.User);
+                    }
+                }
+
+                await _userManager.AddLoginAsync(user, info);
+                await _signInManager.SignInAsync(user, false);
+
+                var token = GetToken(JWTHandler.PrepareClaims(user, new List<string> { UserRoles.User }));
+
+                //sucess
+                await _userManager.SetAuthenticationTokenAsync(
+                    user,
+                    TokenOptions.DefaultProvider,
+                    "IFound_Token",
+                    new JwtSecurityTokenHandler().WriteToken(token));
+
+                return Ok(new
+                {
+                    x_auth_token = new JwtSecurityTokenHandler().WriteToken(token),
+                    expiration = token.ValidTo.ToLocalTime().ToString("f"),
+                    email = user.Email,
+                    name = user.Name,
+                });
+            }
+
+            return null;
         }
 
         [HttpPost]
@@ -110,8 +230,16 @@ namespace IFoundBackend.Controllers
                 {
                     await _userManager.AddToRoleAsync(user, UserRoles.User);
                 }
-
-                return Ok(new Auth.Response { Status = "Success", Message = "User created successfully!" });
+                var authClaims=JWTHandler.PrepareClaims(user, new List<string> { UserRoles.User });
+                
+                var token = GetToken(authClaims);
+                return Ok(new
+                {
+                    x_auth_token = new JwtSecurityTokenHandler().WriteToken(token),
+                    expiration = token.ValidTo.ToLocalTime().ToString("f"),
+                    email = user.Email,
+                    name = user.Name,
+                });
             }
             catch (Exception ex)
             {
@@ -156,11 +284,11 @@ namespace IFoundBackend.Controllers
 
         [HttpPost]
         [Route("verifyToken")]
-        public  IActionResult VerifyToken([FromBody] string token)
+        public IActionResult VerifyToken([FromBody] string token)
         {
             try
             {
-                bool isValid= VerifyToken(token, _configuration["JWT:Secret"]);
+                bool isValid = VerifyToken(token, _configuration["JWT:Secret"]);
                 return new ObjectResult(new { isValid });
             }
             catch (Exception)
@@ -184,7 +312,7 @@ namespace IFoundBackend.Controllers
             return token;
         }
 
-        
+
         private bool VerifyToken(string token, string secretKey)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -194,7 +322,7 @@ namespace IFoundBackend.Controllers
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
                 ValidateIssuer = false, // Set to true if you want to validate the issuer
                 ValidateAudience = false, // Set to true if you want to validate the audience
-                ValidateLifetime= true,
+                ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero // Set the tolerance for expired tokens (optional)
             };
 
