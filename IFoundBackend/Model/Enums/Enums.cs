@@ -22,9 +22,10 @@ namespace IFoundBackend.Model.Enums
 
     public enum RelationType
     {
-        Brother,
-        Sister,
-        Child,
+        Brother=1,
+        Sister=2,
+        Child=3,
+        Other=4,
         Nephew
     }
 }

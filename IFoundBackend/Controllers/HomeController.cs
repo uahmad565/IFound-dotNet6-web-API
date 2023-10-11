@@ -1,41 +1,28 @@
-﻿using IFoundBackend.Areas.MxFaceManager;
-using IFoundBackend.Areas.Posts;
+﻿using IFoundBackend.Areas.Posts;
 using IFoundBackend.Areas.ToDTOs;
-using IFoundBackend.ControllerModel;
-using IFoundBackend.Data;
-using IFoundBackend.Model;
-using IFoundBackend.Model.Abstracts;
+using IFoundBackend.DTOs;
 using IFoundBackend.Model.Enums;
-using IFoundBackend.Model.Posts;
-using IFoundBackend.Model.Targets;
 using IFoundBackend.MxFace;
 using IFoundBackend.SqlModels;
-using Microsoft.AspNetCore.Cors;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Docs.Samples;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using MXFaceAPIOneToNCall.Model.FaceIndentity;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
+using Newtonsoft.Json.Serialization;
+using Microsoft.Extensions.Configuration;
+using System.Net;
+using Microsoft.AspNetCore.Authorization;
+using IFoundBackend.Auth;
+using NuGet.Common;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using IFoundBackend.Areas.Help;
+using IFoundBackend.Model;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
-//Scaffolding Command
-//Scaffold-DbContext "Data Source=LHE-LT-UKABIR;Initial Catalog=IFound;Integrated Security=True" Microsoft.EntityFrameworkCore.SqlServer -OutputDir SqlModels -Force
 namespace IFoundBackend.Controllers
 {
     [Route("api/[controller]")]
@@ -45,189 +32,280 @@ namespace IFoundBackend.Controllers
         public readonly int _lostGroupId = 22;
         public readonly int _foundGroup = 23;
         public readonly int _confidenceThresh = 100;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        private MXFaceIdentityAPI _mxFaceIdentityAPI;
+        private IPostManager _postManager { get; }
+
         private readonly ILogger<HomeController> _logger;
-        public HomeController(ILogger<HomeController> logger)
+
+        public HomeController(ILogger<HomeController> logger, IConfiguration configuration, UserManager<ApplicationUser> userManager)
         {
             _logger = logger;
-
-            string _subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
-            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v3/", _subscriptionKey);
-            _mxFaceIdentityAPI = mxFaceIdentityAPI;
+            _lostGroupId = int.Parse(configuration["MXFaceConfiguration:lostGroupId"]);
+            _foundGroup = int.Parse(configuration["MXFaceConfiguration:foundGroupId"]);
+            _confidenceThresh = int.Parse(configuration["MXFaceConfiguration:confidenceThresh"]);
+            _userManager = userManager;
+            string _subscriptionKey = configuration["MXFaceConfiguration:subscriptionKey"];
+            MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI(configuration["MXFaceConfiguration:URL"], _subscriptionKey);
+            _postManager = new PostPersonManager(mxFaceIdentityAPI, _userManager);
         }
 
-    
+        //public HomeController()
+        //{
+        //    string _subscriptionKey = "XYiyrB4lAxfLx8F4o8-nAjyNS0wKw1148";
+        //    MXFaceIdentityAPI mxFaceIdentityAPI = new MXFaceIdentityAPI("https://faceapi.mxface.ai/api/v3/", _subscriptionKey);
+        //    _mxFaceIdentityAPI = mxFaceIdentityAPI;
+        //}
+
+        [AllowAnonymous]
+        [HttpGet]
+        public string Index()
+        {
+            return "<h1>Server is running </h1>";
+        }
+
+        [Authorize(Roles = UserRoles.User)]
         [HttpPost("createFoundPersonForm")]
-        //public async Task<IActionResult> createLostPersonIdentity([Bind("Image,Description ,Location, Age, UserId, Gender, Relation, Name, targetType")] LostPersonForm data)
-        public async Task<IActionResult> createFoundPersonIdentity([FromForm] PersonForm data)
+        public async Task<IActionResult> CreateFoundPersonIdentity([FromForm] PersonForm data)
         {
-            data.TargetType = TargetType.FOUND;
-            string encoded = data.convertToBase64(data.Image);
-            //string encoded = data.Base64Image;
-            using (var dbContext = new IFoundContext())
+            try
             {
-
-                using (var transaction = dbContext.Database.BeginTransaction())
+                string tokenUserId = this.GetTokenUserId();
+                var response = await _postManager.CreatePost(data, _foundGroup, tokenUserId);
+                if (response.IsSuccessStatusCode)
                 {
-                    try
-                    {
-                        var x = new PostPersonManager();
-                        int postID = await x.createPost(dbContext, data);
-
-                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _foundGroup }, encoded, postID.ToString(), true);
-
-                        string apiResponse = await response.Content.ReadAsStringAsync();
-
-                        if (response.StatusCode == HttpStatusCode.OK)
-                        {
-                            FaceIdentityInfo faceIdentityInfoResponse = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse);
-                            var mxFaceIdentity = new MxFaceIdentity
-                            {
-                                FaceIdentityId = (int)faceIdentityInfoResponse.FaceIdentityId,
-                                PostId = postID
-                            };
-                            dbContext.MxFaceIdentities.Add(mxFaceIdentity);
-                            dbContext.SaveChanges();
-                            transaction.Commit();
-                            return Ok(response);
-                        }
-                        else
-                        {
-                            transaction.Rollback();
-                            return BadRequest(response);
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        return BadRequest(ex);
-
-                    }
+                    return Ok(response);
                 }
-
+                return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred: " + ex.Message);
             }
         }
 
-
+        [Authorize(Roles = UserRoles.User)]
         [HttpPost("createLostPersonForm")]
-        //public async Task<IActionResult> createLostPersonIdentity([Bind("Image,Description ,Location, Age, UserId, Gender, Relation, Name, targetType")] LostPersonForm data)
-        public async Task<IActionResult> createLostPersonIdentity([FromForm] PersonForm data)
+        public async Task<IActionResult> CreateLostPersonIdentity([FromForm] PersonForm data)
         {
-            data.TargetType = TargetType.LOST;
-
-            string encoded = data.convertToBase64(data.Image);
-            //string encoded = data.Base64Image;
-            using (var dbContext = new IFoundContext())
+            try
             {
-
-                using (var transaction = dbContext.Database.BeginTransaction())
+                string tokenUserId = this.GetTokenUserId();
+                var response = await _postManager.CreatePost(data, _lostGroupId, tokenUserId);
+                if (response.IsSuccessStatusCode)
                 {
-                    try
-                    {
-                        var x = new PostPersonManager();
-                        int postID = await x.createPost(dbContext, data);
-
-                        HttpResponseMessage response = await _mxFaceIdentityAPI.CreateFaceIdentity(new List<int> { _lostGroupId }, encoded, postID.ToString(), true);
-
-                        string apiResponse = await response.Content.ReadAsStringAsync();
-
-                        if (response.StatusCode == HttpStatusCode.OK)
-                        {
-                            FaceIdentityInfo faceIdentityInfoResponse = JsonConvert.DeserializeObject<FaceIdentityInfo>(apiResponse);
-                            var mxFaceIdentity = new MxFaceIdentity
-                            {
-                                FaceIdentityId = (int)faceIdentityInfoResponse.FaceIdentityId,
-                                PostId = postID
-                            };
-                            dbContext.MxFaceIdentities.Add(mxFaceIdentity);
-                            dbContext.SaveChanges();
-                            transaction.Commit();
-                            return Ok(response);
-                        }
-                        else
-                        {
-                            transaction.Rollback();
-                            return BadRequest(response);
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        return BadRequest(ex);
-
-                    }
+                    return Ok(response);
                 }
-
+                return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred: " + ex.Message);
             }
         }
 
+        [Authorize]
         [HttpGet("getCurrentFoundPosts")]
         public IActionResult GetCurrentFoundPosts()
         {
-            var postManager = new PostPersonManager();
-            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.FOUND);
-            return Ok(list);
+            List<PostDto> list = _postManager.GetCurrentPersonPosts(TargetType.FOUND);
+
+            // Configure the JSON serializer to use UTC format for DateTime properties
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc
+            };
+
+            return new JsonResult(list, settings);
         }
 
+        [HttpGet("filterPosts")]
+        public IActionResult ApplyFilterPosts(string City, string Name, int MinAge, int MaxAge, GenderType Gender, DateTime FromDate, DateTime ToDate, int PageNo, int PageSize = 10)
+        {
+
+            List<PostDto> list = _postManager.GetCurrentPersonPostsFilters(TargetType.LOST, City, Name, MinAge, MaxAge, Gender, FromDate, ToDate, PageNo, PageSize);
+
+            // Configure the JSON serializer to use UTC format for DateTime properties
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc
+            };
+
+            return new JsonResult(list, settings);
+        }
+
+
+        [Authorize]
         [HttpGet("getCurrentLostPosts")]
         public IActionResult GetCurrentLostPosts()
         {
-            var postManager = new PostPersonManager();
-            List<PostDto> list = postManager.GetCurrentPersonPosts(TargetType.LOST);
+            List<PostDto> list = _postManager.GetCurrentPersonPosts(TargetType.LOST);
+
+            // Configure the JSON serializer to use UTC format for DateTime properties
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                DateTimeZoneHandling = DateTimeZoneHandling.Utc
+            };
+
+            return new JsonResult(list, settings);
+        }
+
+        [Authorize(Roles = UserRoles.User)]
+        [HttpGet("activeCases/{postStatus}/{targetType}")]
+        public IActionResult GetUserActiveCases([FromRoute] Model.Enums.PostStatus postStatus, [FromRoute] TargetType targetType)
+        {
+            string tokenUserId = this.GetTokenUserId();
+            List<PostDto> list = _postManager.GetUserActiveCases(postStatus, targetType, tokenUserId);
             return Ok(list);
         }
 
-        [HttpGet("activeCases")]
-        public IActionResult GetUserActiveCases(TargetType targetType,int id)
+        [Authorize(Roles = UserRoles.User)]
+        [HttpPost("searchPerson/{targetType}")]
+        public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromRoute] TargetType targetType)
         {
-            var postManager = new PostPersonManager();
-            List<PostDto> list = postManager.GetUserActiveCases(targetType, id);
-            return Ok(list);
-        }
 
-        
-        [HttpPost("searchLostPerson")]
-        //public async Task<IActionResult> SearchLostPerson([FromForm] IFormFile data)
-        public async Task<IActionResult> SearchLostPerson([FromForm] string encoded, [FromForm] TargetType targetType)
-        {
-           
             int findGroupID = 0;
-            if(targetType== TargetType.FOUND)
+            if (targetType == TargetType.FOUND)
                 findGroupID = _lostGroupId;
-            else if(targetType== TargetType.LOST)
+            else if (targetType == TargetType.LOST)
                 findGroupID = _foundGroup;
 
             int limit = 2;
             bool returnConfidence = true;
-            HttpResponseMessage response = await _mxFaceIdentityAPI.SearchFaceIdentityInGroup(new List<int> { findGroupID }, encoded, limit, returnConfidence);
-            Task<string> apiResponseTask = response.Content.ReadAsStringAsync();
+            var result = await _postManager.SearchPosts(findGroupID, encoded, limit, returnConfidence);
+            if (result != null)
+                return Ok(result);
+            return BadRequest("Error In Searching Make sure to send clear Image");
+        }
 
-            if (response.StatusCode == HttpStatusCode.OK)
+        [Authorize(Roles = UserRoles.User)]
+        [HttpPut("UpdatePostStatus/{postId}")]
+        public ActionResult UpdatePostStatus(int postId, [FromBody] Model.Enums.PostStatus postStatus)
+        {
+            try
             {
-                string apiResponse = await apiResponseTask;
-                SearchFaceIdentityResponse searchFaceIdentityResponse = JsonConvert.DeserializeObject<SearchFaceIdentityResponse>(apiResponse);
-                List<SearchedPostDto> searchedPostDtos= new List<SearchedPostDto>();
-                foreach (var lookUpIdentity in searchFaceIdentityResponse.SearchedIdentities)
-                {
-                    var x = new PostPersonManager();
-                    searchedPostDtos.AddRange(x.GetSearchedPosts(lookUpIdentity.identityConfidences));
-                }
-                
-                return Ok(searchedPostDtos);
+                _postManager.UpdatePostStatus(postId, postStatus);
+                return NoContent();
             }
-            else
+            catch (Exception ex)
             {
-                return BadRequest("Error In Searching.");
+                return StatusCode(500, ex.Message);
+            }
+
+        }
+        [Authorize]
+        [HttpDelete("DeleteCurrentPost/{postId}")]
+        public async Task<ActionResult> DeletePost([FromRoute] int postId)
+        {
+            try
+            {
+                var response = await _postManager.DeletePost(postId);
+                if (response.IsSuccessStatusCode)
+                    return Ok(response);
+                return StatusCode(((int)response.StatusCode), response.ReasonPhrase);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.Message);
+            }
+        }
+
+        [Authorize(Roles = UserRoles.User)]
+        // GET: api/PostPersons/5
+        [HttpGet("GetCurrentPostPerson/{postId}/{postType}")]
+        public async Task<ActionResult<PostPerson>> GetCurrentPostPerson(int postId, TargetType postType)
+        {
+            try
+            {
+                var result = await _postManager.GetCurrentPostById(postId, postType);
+
+                if (result == null)
+                    return NotFound();
+
+                var settings = new JsonSerializerSettings
+                {
+                    ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                    DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                    DateTimeZoneHandling = DateTimeZoneHandling.Utc
+                };
+
+                return new JsonResult(result, settings);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred: " + ex.Message);
             }
 
         }
 
+        [Authorize(Roles = UserRoles.User)]
+        [HttpGet("GetPostPerson")]
+        public async Task<ActionResult<PostPerson>> GetPostPerson(int id)
+        {
+            try
+            {
+                var result = await _postManager.GetPostById(id);
+                if (result == null)
+                    return NotFound();
 
+                var settings = new JsonSerializerSettings
+                {
+                    ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                    DateFormatHandling = DateFormatHandling.IsoDateFormat,
+                    DateTimeZoneHandling = DateTimeZoneHandling.Utc
+                };
 
+                return new JsonResult(result, settings);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred: " + ex.Message);
+            }
 
+        }
+        #region Statistics Apis
+
+        [Authorize]
+        [HttpGet("DashboardStats")]
+        public IActionResult GetDashboardStats()
+        {
+            try
+            {
+                string tokenUserId = GetTokenUserId();
+                StatDto dto = new()
+                {
+                    UserActiveLostCasesCount = _postManager.GetUserActiveCasesCount(TargetType.LOST, tokenUserId),
+                    UserActiveFoundCasesCount = _postManager.GetUserActiveCasesCount(TargetType.FOUND, tokenUserId),
+                    UserUnresolvedCasesCount = _postManager.GetUserUnresolvedCasesCount(tokenUserId),
+                    UserResolvedCasesCount = _postManager.GetUserResolvedCasesCount(tokenUserId),
+                    AllActiveLostPostCount = _postManager.GetActivePostCount(TargetType.LOST),
+                    AllActiveFoundPostCount = _postManager.GetActivePostCount(TargetType.FOUND),
+                    AllResolvedPostCount = _postManager.GetAllResolvedCasesCount(),
+                    AllUnResolvedPostCount = _postManager.GetAllUnResolvedCasesCount()
+                };
+
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred: " + ex.Message);
+            }
+        }
+        #endregion
+
+        #region Private Methods
+        private string GetTokenUserId()
+        {
+            string token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            return JWTHandler.GetUserID(token);
+        }
+        #endregion
     }
 
 }

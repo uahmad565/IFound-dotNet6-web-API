@@ -1,39 +1,23 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using IFoundBackend.Model.Enums;
+using Microsoft.AspNetCore.Http;
 using System.IO;
-using System;
-using IFoundBackend.Model.Enums;
 using System.Threading.Tasks;
-using System.ComponentModel.DataAnnotations;
+using System;
 
-namespace IFoundBackend.ControllerModel
+namespace IFoundBackend.DTOs
 {
-
-    public class PersonForm
+    public class FoundPersonForm
     {
         public IFormFile Image { get; set; }
 
         public string Base64Image { get; set; }
-        
-        [Required]
-        [MinLength(20)]
         public string Description { get; set; }
-        [Required]
-        [MinLength(20)]
         public string Location { get; set; }
-
-        [Range(3, 100)]
-        [Required]
-        public int? Age { get; set; }
-        [Required]
-        public int? UserId { get; set; }
-        [Required]
-        public GenderType? Gender { get; set; }
-        [Required]
-        public RelationType? Relation { get; set; }
-        [Required]
-        [MinLength(5)]
+        public int Age { get; set; }
+        public int UserId { get; set; }
+        public GenderType Gender { get; set; }
         public string Name { get; set; }
-        public TargetType? TargetType{ get; set; }
+        public TargetType TargetType { get; set; }
         public PostStatus PostStatus { get; set; } = PostStatus.Unresolved;
 
         public string convertToBase64(IFormFile file)
